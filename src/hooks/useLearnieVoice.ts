@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Message, RealtimeChat } from '@/utils/RealtimeAudio';
 
 // Define all possible phases
 type Phase = 'idle' | 'connecting' | 'listen' | 'speak';
@@ -9,140 +10,58 @@ type Phase = 'idle' | 'connecting' | 'listen' | 'speak';
 export const useLearnieVoice = () => {
   const { toast } = useToast();
   const [phase, setPhase] = useState<Phase>('idle');
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioQueueRef = useRef<Float32Array[]>([]);
+  const [transcript, setTranscript] = useState<string>('');
+  const [messageHistory, setMessageHistory] = useState<Message[]>([]);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const realtimeChatRef = useRef<RealtimeChat | null>(null);
 
   const startConversation = async () => {
     try {
       if (phase !== 'idle') return;
       setPhase('connecting');
-
-      // Get ephemeral token from our edge function
-      const { data, error } = await supabase.functions.invoke('realtime-chat');
       
-      if (error) {
-        console.error('Error getting token:', error);
-        throw new Error(error?.message || 'Failed to get auth token');
-      }
-
-      console.log('Got token data:', data);
-
-      // Connect directly to the WebSocket edge function
-      const SUPABASE_PROJECT_REF = "ceofrvinluwymyuizztv";
-      const wsUrl = `wss://${SUPABASE_PROJECT_REF}.functions.supabase.co/realtime-chat`;
-      console.log('Connecting to WebSocket:', wsUrl);
-      
-      socketRef.current = new WebSocket(wsUrl);
-      socketRef.current.binaryType = 'arraybuffer';
-
-      // Set up audio context for recording
-      audioContextRef.current = new AudioContext({
-        sampleRate: 24000, // OpenAI requires 24kHz
-      });
-
-      // Set up connection event handlers
-      socketRef.current.onopen = async () => {
-        console.log("WebSocket connection opened");
+      if (!realtimeChatRef.current) {
+        const chat = new RealtimeChat(
+          // Connection change handler
+          (connected) => {
+            if (!connected) {
+              setPhase('idle');
+            }
+          },
+          // Transcript update handler
+          (text) => {
+            setTranscript(prev => prev + text);
+          },
+          // Speaking change handler
+          (speaking) => {
+            setPhase(speaking ? 'speak' : 'listen');
+          },
+          // Processing state handler
+          (processing) => {
+            setIsProcessing(processing);
+          },
+          // Message history update handler
+          (messages) => {
+            setMessageHistory(messages);
+          }
+        );
         
-        try {
-          // If we have a token from the initial invoke call, send it to authenticate
-          if (data?.client_secret?.value) {
-            console.log('Sending token for authentication');
-            socketRef.current?.send(JSON.stringify({
-              type: 'authentication',
-              token: data.client_secret.value
-            }));
-          }
-          
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              sampleRate: 24000,
-              channelCount: 1,
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            }
-          });
-
-          const source = audioContextRef.current!.createMediaStreamSource(stream);
-          const processor = audioContextRef.current!.createScriptProcessor(4096, 1, 1);
-          
-          source.connect(processor);
-          processor.connect(audioContextRef.current!.destination);
-
-          // Create a local reference to track current phase for closures
-          let currentPhase: Phase = 'listen';
-          setPhase('listen');
-
-          processor.onaudioprocess = (e) => {
-            // Use the current phase reference instead of the state variable directly
-            if (currentPhase === 'listen' && socketRef.current?.readyState === WebSocket.OPEN) {
-              const inputData = e.inputBuffer.getChannelData(0);
-              const pcmData = new Float32Array(inputData);
-              
-              // Convert to base64 and send
-              socketRef.current.send(JSON.stringify({
-                type: 'input_audio_buffer.append',
-                audio: encodeAudioData(pcmData)
-              }));
-            }
-          };
-          
-          toast({
-            title: "Connected",
-            description: "Ready to chat with Learnie!",
-          });
-        } catch (error) {
-          console.error('Error accessing microphone:', error);
-          cleanup();
-          toast({
-            title: "Microphone Error",
-            description: error instanceof Error ? error.message : 'Failed to access microphone',
-            variant: "destructive",
-          });
-        }
-      };
-
-      // Handle incoming messages
-      socketRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log("WebSocket message received:", data.type);
-          
-          if (data.type === 'response.audio.delta') {
-            setPhase('speak');
-            const audioData = decodeAudioData(data.delta);
-            playAudioData(audioData);
-          } else if (data.type === 'response.audio.done') {
-            setPhase('listen');
-          }
-        } catch (error) {
-          console.error('Error processing message:', error);
-        }
-      };
-
-      // Handle connection errors
-      socketRef.current.onerror = (event) => {
-        console.error("WebSocket error:", event);
-        cleanup();
-        toast({
-          title: "Connection Error",
-          description: "Error connecting to AI service",
-          variant: "destructive",
-        });
-      };
-
-      // Handle WebSocket closure
-      socketRef.current.onclose = (event) => {
-        console.log("WebSocket connection closed with code:", event.code, "reason:", event.reason);
-        cleanup();
-      };
+        realtimeChatRef.current = chat;
+      }
       
+      await realtimeChatRef.current.connect();
+      setPhase('listen');
+      
+      // Reset transcript for new conversation
+      setTranscript('');
+
+      toast({
+        title: "Connected",
+        description: "Ready to chat with Learnie!",
+      });
     } catch (error) {
       console.error('Error starting conversation:', error);
-      cleanup();
+      setPhase('idle');
       toast({
         title: "Connection Error",
         description: error instanceof Error ? error.message : 'Failed to start conversation',
@@ -150,89 +69,39 @@ export const useLearnieVoice = () => {
       });
     }
   };
-
-  const cleanup = () => {
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
+  
+  const stopConversation = () => {
+    if (realtimeChatRef.current) {
+      realtimeChatRef.current.disconnect();
+      setPhase('idle');
     }
-    
-    if (socketRef.current) {
-      if (socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.close();
-      }
-      socketRef.current = null;
+  };
+  
+  const clearHistory = () => {
+    if (realtimeChatRef.current) {
+      realtimeChatRef.current.clearHistory();
+      setMessageHistory([]);
+      setTranscript('');
     }
-
-    setPhase('idle');
   };
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      cleanup();
+      if (realtimeChatRef.current) {
+        realtimeChatRef.current.disconnect();
+      }
     };
   }, []);
 
   return {
     phase,
+    transcript,
+    messageHistory,
+    isProcessing,
     startConversation,
+    stopConversation,
+    clearHistory,
     isConnected: phase !== 'idle',
   };
-};
-
-// Helper function to encode Float32Array to base64 string
-const encodeAudioData = (float32Array: Float32Array): string => {
-  const int16Array = new Int16Array(float32Array.length);
-  for (let i = 0; i < float32Array.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32Array[i]));
-    int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-  }
-  
-  const uint8Array = new Uint8Array(int16Array.buffer);
-  let binary = '';
-  const chunkSize = 0x8000;
-  
-  for (let i = 0; i < uint8Array.length; i += chunkSize) {
-    const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
-    binary += String.fromCharCode.apply(null, Array.from(chunk));
-  }
-  
-  return btoa(binary);
-};
-
-// Helper function to decode base64 to Float32Array
-const decodeAudioData = (base64: string): Float32Array => {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  
-  const int16 = new Int16Array(bytes.buffer);
-  const float32 = new Float32Array(int16.length);
-  for (let i = 0; i < int16.length; i++) {
-    float32[i] = int16[i] / 0x8000;
-  }
-  
-  return float32;
-};
-
-// Helper function to play audio data
-const playAudioData = async (audioData: Float32Array) => {
-  const audioContext = new AudioContext({ sampleRate: 24000 });
-  const buffer = audioContext.createBuffer(1, audioData.length, 24000);
-  buffer.getChannelData(0).set(audioData);
-  
-  const source = audioContext.createBufferSource();
-  source.buffer = buffer;
-  source.connect(audioContext.destination);
-  source.start();
-  
-  return new Promise<void>((resolve) => {
-    source.onended = () => {
-      audioContext.close();
-      resolve();
-    };
-  });
 };

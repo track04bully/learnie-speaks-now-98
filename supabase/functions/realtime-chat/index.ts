@@ -6,6 +6,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Rich system prompt that defines the AI assistant's personality and behavior
+const SYSTEM_PROMPT = `
+You are Learnie, a fun and friendly AI assistant designed to help kids learn and explore the world.
+Your personality is:
+- Enthusiastic and encouraging
+- Patient and understanding
+- Creative and imaginative
+- Educational but never condescending
+- Always age-appropriate and safe
+
+When speaking with children:
+- Use simple language for younger kids, more advanced for older ones
+- Ask questions to encourage critical thinking
+- Praise efforts and good questions
+- If you don't know something, say so honestly
+- Avoid giving any harmful, dangerous, or inappropriate information
+
+Your goal is to spark curiosity and a love of learning!
+`;
+
+// Context storage for persistent memory across turns
+const sessionContexts = new Map();
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -131,6 +154,15 @@ serve(async (req) => {
           sessionId = data.session_id;
           console.log("Session created with ID:", sessionId);
           
+          // Create a context for this session
+          if (sessionId && !sessionContexts.has(sessionId)) {
+            sessionContexts.set(sessionId, {
+              messageHistory: [],
+              lastActivity: Date.now()
+            });
+            console.log("Created memory context for session:", sessionId);
+          }
+          
           // Send initial request with ephemeral token
           const EPHEMERAL_KEY = data.client_secret.value;
           openAISocket.send(`Authorization: Bearer ${EPHEMERAL_KEY}\r\n` +
@@ -149,15 +181,15 @@ serve(async (req) => {
             try {
               const data = JSON.parse(event.data);
               if (data.type === "session.created") {
-                console.log("Session created, updating session config");
+                console.log("Session created, updating session config with rich system prompt");
                 
-                // Update session with more detailed config
+                // Update session with more detailed config and rich system prompt
                 const sessionUpdateEvent = {
                   event_id: "update_session_" + Date.now(),
                   type: "session.update",
                   session: {
                     modalities: ["text", "audio"],
-                    instructions: "You are a helpful AI assistant specializing in providing accurate and clear information. Keep your responses concise and natural.",
+                    instructions: SYSTEM_PROMPT,
                     voice: "alloy",
                     input_audio_format: "pcm16",
                     output_audio_format: "pcm16",
@@ -192,15 +224,72 @@ serve(async (req) => {
     // Forward messages from client to OpenAI
     socket.onmessage = (event) => {
       if (openAISocket.readyState === WebSocket.OPEN) {
-        console.log("Forwarding message to OpenAI:", event.data.slice(0, 100) + "...");
+        try {
+          const message = JSON.parse(event.data);
+          
+          // For transcript updates, store in session memory
+          if (message.type === "input_audio_transcript.update" && sessionId) {
+            const context = sessionContexts.get(sessionId);
+            if (context) {
+              context.messageHistory.push({
+                role: "user",
+                content: message.transcript || "",
+                timestamp: Date.now()
+              });
+              context.lastActivity = Date.now();
+              
+              // Limit history size to prevent excessive memory usage
+              if (context.messageHistory.length > 20) {
+                context.messageHistory.shift();
+              }
+            }
+          }
+          
+          console.log("Forwarding message to OpenAI:", event.data.slice(0, 100) + "...");
+        } catch (error) {
+          console.log("Non-JSON message forwarded to OpenAI");
+        }
+        
         openAISocket.send(event.data);
       }
     };
 
-    // Forward transcription results from OpenAI to client
+    // Forward transcription results from OpenAI to client and store assistant responses
     openAISocket.onmessage = (event) => {
       if (socket.readyState === WebSocket.OPEN) {
-        console.log("Forwarding message from OpenAI to client");
+        try {
+          const data = JSON.parse(event.data);
+          
+          // Store assistant responses in session memory
+          if (data.type === "response.audio_transcript.delta" && sessionId) {
+            const context = sessionContexts.get(sessionId);
+            if (context) {
+              // Check if we already have an in-progress assistant message
+              let lastMessage = context.messageHistory.length > 0 ? 
+                context.messageHistory[context.messageHistory.length - 1] : null;
+                
+              if (!lastMessage || lastMessage.role !== "assistant") {
+                // Start a new assistant message
+                context.messageHistory.push({
+                  role: "assistant",
+                  content: data.delta || "",
+                  timestamp: Date.now()
+                });
+              } else {
+                // Append to existing assistant message
+                lastMessage.content += data.delta || "";
+                lastMessage.timestamp = Date.now();
+              }
+              
+              context.lastActivity = Date.now();
+            }
+          }
+          
+          console.log("Forwarding message from OpenAI to client");
+        } catch (error) {
+          console.log("Non-JSON message forwarded to client");
+        }
+        
         socket.send(event.data);
       }
     };
@@ -220,7 +309,13 @@ serve(async (req) => {
       console.log("Client connection closed with code:", event.code, "reason:", event.reason);
       if (sessionId) {
         console.log("Cleaning up session:", sessionId);
-        // Note: Session will auto-expire but we log it for tracking
+        // We keep the session context for a while in case the user reconnects
+        setTimeout(() => {
+          if (sessionContexts.has(sessionId)) {
+            console.log("Removing inactive session context:", sessionId);
+            sessionContexts.delete(sessionId);
+          }
+        }, 30 * 60 * 1000); // Keep context for 30 minutes
       }
       openAISocket.close();
     };
@@ -231,6 +326,19 @@ serve(async (req) => {
         socket.close(event.code, event.reason);
       }
     };
+
+    // Set up a regular cleanup task to remove old session contexts
+    setInterval(() => {
+      const now = Date.now();
+      const expiryTime = 30 * 60 * 1000; // 30 minutes
+      
+      for (const [sessionId, context] of sessionContexts.entries()) {
+        if (now - context.lastActivity > expiryTime) {
+          console.log("Removing expired session context:", sessionId);
+          sessionContexts.delete(sessionId);
+        }
+      }
+    }, 5 * 60 * 1000); // Run every 5 minutes
 
     return response;
   } catch (error) {

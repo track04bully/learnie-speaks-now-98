@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export class AudioRecorder {
@@ -94,6 +95,13 @@ export class AudioRecorder {
   }
 }
 
+// Message interfaces for conversation history
+export interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
 export class RealtimeChat {
   private ws: WebSocket | null = null;
   private recorder: AudioRecorder | null = null;
@@ -102,14 +110,20 @@ export class RealtimeChat {
   private isPlaying = false;
   private isMicrophoneActive = false;
   private isConnected = false;
+  private sessionId: string | null = null;
+  private messageHistory: Message[] = [];
   
   constructor(
     private onConnectionChange: (connected: boolean) => void,
     private onTranscriptUpdate: (text: string) => void,
     private onSpeakingChange: (speaking: boolean) => void,
-    private onProcessing: (processing: boolean) => void
+    private onProcessing: (processing: boolean) => void,
+    private onMessageHistoryUpdate?: (messages: Message[]) => void
   ) {
     this.recorder = new AudioRecorder();
+    
+    // Try to load conversation history from localStorage
+    this.loadConversationHistory();
   }
 
   async connect() {
@@ -148,6 +162,8 @@ export class RealtimeChat {
               break;
               
             case "response.audio_transcript.delta":
+              // Store assistant message in history
+              this.addOrUpdateMessage('assistant', data.delta);
               this.onTranscriptUpdate(data.delta);
               break;
               
@@ -163,6 +179,9 @@ export class RealtimeChat {
             case "response.done":
               console.log("Assistant finished responding");
               this.onSpeakingChange(false);
+              
+              // Save conversation history after assistant response
+              this.saveConversationHistory();
               break;
               
             case "heartbeat":
@@ -173,6 +192,21 @@ export class RealtimeChat {
             case "speech_stopped":
               console.log("Speech input stopped");
               this.onProcessing(true);
+              break;
+            
+            case "input_audio_transcript.update":
+              if (data.transcript) {
+                // Store user message in history
+                this.addOrUpdateMessage('user', data.transcript);
+              }
+              break;
+              
+            case "token_received":
+              // Store the session ID for context persistence
+              if (data.session_id) {
+                this.sessionId = data.session_id;
+                console.log("Received session ID:", this.sessionId);
+              }
               break;
 
             default:
@@ -207,6 +241,9 @@ export class RealtimeChat {
   }
 
   disconnect() {
+    // Save conversation history before disconnecting
+    this.saveConversationHistory();
+    
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -227,6 +264,78 @@ export class RealtimeChat {
 
   isActive(): boolean {
     return this.isConnected && this.isMicrophoneActive;
+  }
+
+  // Get the current message history
+  getMessageHistory(): Message[] {
+    return [...this.messageHistory];
+  }
+  
+  // Clear conversation history
+  clearHistory() {
+    this.messageHistory = [];
+    localStorage.removeItem('conversation_history');
+    
+    if (this.onMessageHistoryUpdate) {
+      this.onMessageHistoryUpdate(this.messageHistory);
+    }
+  }
+
+  private addOrUpdateMessage(role: 'user' | 'assistant', content: string) {
+    const now = Date.now();
+    
+    // If the last message is from the same role and within 10 seconds, update it
+    const lastMessage = this.messageHistory.length > 0 ? 
+      this.messageHistory[this.messageHistory.length - 1] : null;
+      
+    if (lastMessage && lastMessage.role === role && now - lastMessage.timestamp < 10000) {
+      // Update existing message
+      lastMessage.content += content;
+      lastMessage.timestamp = now;
+    } else {
+      // Add new message
+      this.messageHistory.push({
+        role,
+        content,
+        timestamp: now
+      });
+      
+      // Limit history size
+      if (this.messageHistory.length > 50) {
+        this.messageHistory.shift();
+      }
+    }
+    
+    // Notify about history update
+    if (this.onMessageHistoryUpdate) {
+      this.onMessageHistoryUpdate([...this.messageHistory]);
+    }
+  }
+
+  private saveConversationHistory() {
+    try {
+      localStorage.setItem('conversation_history', JSON.stringify(this.messageHistory));
+    } catch (error) {
+      console.error('Error saving conversation history:', error);
+    }
+  }
+
+  private loadConversationHistory() {
+    try {
+      const savedHistory = localStorage.getItem('conversation_history');
+      if (savedHistory) {
+        this.messageHistory = JSON.parse(savedHistory);
+        
+        // Notify about loaded history
+        if (this.onMessageHistoryUpdate) {
+          this.onMessageHistoryUpdate([...this.messageHistory]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading conversation history:', error);
+      // Reset if there's an error
+      this.messageHistory = [];
+    }
   }
 
   private decodeBase64ToPCM(base64Data: string): Float32Array {
