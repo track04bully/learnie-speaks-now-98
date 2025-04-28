@@ -129,8 +129,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           "hover:scale-105 hover:shadow-[0_0_30px_rgba(107,102,255,0.3)] transition-all duration-300",
           "rounded-[45%_55%_52%_48%_/_48%_45%_55%_52%]",
           isRecording 
-            ? "bg-gradient-to-br from-kinder-pink to-kinder-purple animate-bounce-soft" 
-            : "bg-gradient-to-br from-kinder-purple to-kinder-red hover:from-kinder-purple hover:to-kinder-pink",
+            ? "bg-kinder-pink animate-bounce-soft" 
+            : "bg-kinder-purple hover:bg-kinder-red",
           !isReady && "opacity-70 cursor-not-allowed"
         )}
       >
