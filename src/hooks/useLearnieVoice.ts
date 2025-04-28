@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,53 +25,68 @@ export const useLearnieVoice = () => {
         throw new Error(error?.message || 'Failed to get auth token');
       }
 
-      // Connect to OpenAI's realtime API
-      socketRef.current = new WebSocket('wss://api.openai.com/v1/realtime');
+      // Connect to OpenAI's realtime API using WebSocket directly
+      // (Note: We're using a direct WebSocket connection, not invoke)
+      const SUPABASE_PROJECT_REF = "ceofrvinluwymyuizztv";
+      socketRef.current = new WebSocket(`wss://${SUPABASE_PROJECT_REF}.functions.supabase.co/realtime-chat`);
       socketRef.current.binaryType = 'arraybuffer';
-
-      socketRef.current.onopen = () => {
-        // Send initial authorization with ephemeral token
-        socketRef.current?.send(`Authorization: Bearer ${data.client_secret.value}\r\n` +
-                              'Content-Type: application/json\r\n' +
-                              '\r\n');
-      };
 
       // Set up audio context for recording
       audioContextRef.current = new AudioContext({
         sampleRate: 24000, // OpenAI requires 24kHz
       });
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 24000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        }
-      });
+      // Set up connection event handlers
+      socketRef.current.onopen = async () => {
+        console.log("WebSocket connection opened");
+        
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              sampleRate: 24000,
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            }
+          });
 
-      const source = audioContextRef.current.createMediaStreamSource(stream);
-      const processor = audioContextRef.current.createScriptProcessor(4096, 1, 1);
-      
-      source.connect(processor);
-      processor.connect(audioContextRef.current.destination);
-
-      // Create a local reference to track current phase for closures
-      let currentPhase: Phase = 'listen';
-      setPhase('listen');
-
-      processor.onaudioprocess = (e) => {
-        // Use the current phase reference instead of the state variable directly
-        if (currentPhase === 'listen' && socketRef.current?.readyState === WebSocket.OPEN) {
-          const inputData = e.inputBuffer.getChannelData(0);
-          const pcmData = new Float32Array(inputData);
+          const source = audioContextRef.current!.createMediaStreamSource(stream);
+          const processor = audioContextRef.current!.createScriptProcessor(4096, 1, 1);
           
-          // Convert to base64 and send
-          socketRef.current.send(JSON.stringify({
-            type: 'input_audio_buffer.append',
-            audio: encodeAudioData(pcmData)
-          }));
+          source.connect(processor);
+          processor.connect(audioContextRef.current!.destination);
+
+          // Create a local reference to track current phase for closures
+          let currentPhase: Phase = 'listen';
+          setPhase('listen');
+
+          processor.onaudioprocess = (e) => {
+            // Use the current phase reference instead of the state variable directly
+            if (currentPhase === 'listen' && socketRef.current?.readyState === WebSocket.OPEN) {
+              const inputData = e.inputBuffer.getChannelData(0);
+              const pcmData = new Float32Array(inputData);
+              
+              // Convert to base64 and send
+              socketRef.current.send(JSON.stringify({
+                type: 'input_audio_buffer.append',
+                audio: encodeAudioData(pcmData)
+              }));
+            }
+          };
+          
+          toast({
+            title: "Connected",
+            description: "Ready to chat with Learnie!",
+          });
+        } catch (error) {
+          console.error('Error accessing microphone:', error);
+          cleanup();
+          toast({
+            title: "Microphone Error",
+            description: error instanceof Error ? error.message : 'Failed to access microphone',
+            variant: "destructive",
+          });
         }
       };
 
@@ -80,31 +94,37 @@ export const useLearnieVoice = () => {
       socketRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log("WebSocket message received:", data.type);
           
           if (data.type === 'response.audio.delta') {
             setPhase('speak');
-            currentPhase = 'speak'; // Update the local reference
             const audioData = decodeAudioData(data.delta);
             playAudioData(audioData);
           } else if (data.type === 'response.audio.done') {
             setPhase('listen');
-            currentPhase = 'listen'; // Update the local reference
           }
         } catch (error) {
           console.error('Error processing message:', error);
         }
       };
 
+      // Handle connection errors
+      socketRef.current.onerror = (event) => {
+        console.error("WebSocket error:", event);
+        cleanup();
+        toast({
+          title: "Connection Error",
+          description: "Error connecting to AI service",
+          variant: "destructive",
+        });
+      };
+
       // Handle WebSocket closure
       socketRef.current.onclose = () => {
+        console.log("WebSocket connection closed");
         cleanup();
       };
       
-      toast({
-        title: "Connected",
-        description: "Ready to chat with Learnie!",
-      });
-
     } catch (error) {
       console.error('Error starting conversation:', error);
       cleanup();
