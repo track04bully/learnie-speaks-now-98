@@ -1,22 +1,18 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 interface VoiceButtonProps {
-  maxRecordingTime?: number;
   onRecordingComplete?: (blob: Blob) => void;
   disabled?: boolean;
 }
 
 const VoiceButton: React.FC<VoiceButtonProps> = ({ 
-  maxRecordingTime = 8000, 
   onRecordingComplete,
   disabled = false
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isReady, setIsReady] = useState(true);
-  const [countdown, setCountdown] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -35,22 +31,6 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       }
     }, 2000); // 2 seconds of silence
   };
-
-  useEffect(() => {
-    let countdownInterval: number;
-    
-    if (isRecording) {
-      setCountdown(Math.floor(maxRecordingTime / 1000));
-      countdownInterval = window.setInterval(() => {
-        setCountdown(prev => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-    }
-
-    return () => {
-      if (countdownInterval) clearInterval(countdownInterval);
-      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-    };
-  }, [isRecording, maxRecordingTime]);
 
   const setupVoiceActivityDetection = (stream: MediaStream) => {
     const audioContext = new AudioContext();
@@ -134,13 +114,6 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       setIsRecording(true);
       resetSilenceDetection();
       
-      // Automatically stop recording after maxRecordingTime
-      setTimeout(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          mediaRecorderRef.current.stop();
-        }
-      }, maxRecordingTime);
-      
     } catch (error) {
       console.error('Error accessing microphone:', error);
       toast({
@@ -208,12 +181,6 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
             className="w-32 h-32 md:w-40 md:h-40 object-contain"
           />
         </div>
-        
-        {isRecording && (
-          <div className="absolute bottom-4 text-base md:text-lg opacity-80">
-            {countdown > 0 ? `${countdown}...` : "Processing..."}
-          </div>
-        )}
       </button>
     </div>
   );
