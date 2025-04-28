@@ -114,8 +114,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
 
       {isRecording && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="absolute w-full h-full rounded-full bg-kinder-purple/20 animate-pulse-ring"></span>
-          <span className="absolute w-full h-full rounded-full bg-kinder-pink/10 animate-pulse-ring" style={{ animationDelay: '0.5s' }}></span>
+          <span className="absolute w-full h-full rounded-[42%_58%_48%_52%_/_48%_42%_58%_52%] bg-kinder-purple/20 animate-pulse-ring"></span>
+          <span className="absolute w-full h-full rounded-[52%_48%_42%_58%_/_52%_48%_42%_58%] bg-kinder-pink/10 animate-pulse-ring" style={{ animationDelay: '0.5s' }}></span>
         </div>
       )}
       
@@ -123,10 +123,11 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         onClick={handleClick}
         disabled={!isReady}
         className={cn(
-          "relative w-40 h-40 md:w-56 md:h-56 rounded-full text-white text-2xl md:text-4xl",
+          "relative w-40 h-40 md:w-56 md:h-56 text-white text-2xl md:text-4xl",
           "font-baloo font-bold transition-all duration-300 shadow-lg",
           "flex flex-col items-center justify-center gap-2 p-0 overflow-hidden",
           "hover:scale-105 hover:shadow-[0_0_30px_rgba(107,102,255,0.3)] transition-all duration-300",
+          "rounded-[45%_55%_52%_48%_/_48%_45%_55%_52%]",
           isRecording 
             ? "bg-gradient-to-br from-kinder-pink to-kinder-purple animate-bounce-soft" 
             : "bg-gradient-to-br from-kinder-purple to-kinder-red hover:from-kinder-purple hover:to-kinder-pink",
