@@ -47,18 +47,19 @@ export class AudioManager {
     }
 
     // Step 2: Create Int16Array from the binary data
-    const int16Array = new Int16Array(bytes.buffer);
+    const pcm16 = new Int16Array(bytes.buffer);
     
-    // Step 3: Convert to normalized Float32Array for Web Audio API
-    const float32Array = new Float32Array(int16Array.length);
-    for (let i = 0; i < int16Array.length; i++) {
-      // Normalize Int16 (-32768 to 32767) to Float32 (-1.0 to 1.0)
-      float32Array[i] = int16Array[i] / 32768.0;
+    // Step 3: Create an AudioBuffer with the correct specifications
+    const frameCount = pcm16.length;
+    const audioBuffer = this.audioContext.createBuffer(1, frameCount, 24000);
+    
+    // Step 4: Convert Int16 samples to Float32 [-1,1] range and copy to channel
+    const float32Samples = new Float32Array(frameCount);
+    for (let i = 0; i < frameCount; i++) {
+      float32Samples[i] = pcm16[i] / 0x8000; // Normalize to [-1, 1]
     }
-
-    // Step 4: Create and return AudioBuffer
-    const audioBuffer = this.audioContext.createBuffer(1, float32Array.length, 24000);
-    audioBuffer.getChannelData(0).set(float32Array);
+    audioBuffer.copyToChannel(float32Samples, 0, 0);
+    
     return audioBuffer;
   }
 
