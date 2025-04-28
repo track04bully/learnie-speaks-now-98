@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
@@ -84,6 +83,7 @@ serve(async (req) => {
     
     // Create WebSocket connection
     const { socket, response } = Deno.upgradeWebSocket(req);
+    let sessionId: string | null = null;
     
     // Connect to OpenAI's realtime API
     const openAISocket = new WebSocket("wss://api.openai.com/v1/realtime");
@@ -91,7 +91,7 @@ serve(async (req) => {
     openAISocket.onopen = () => {
       console.log("Connected to OpenAI realtime API");
       
-      // Request a token first
+      // Request a token and create session
       fetch("https://api.openai.com/v1/realtime/sessions", {
         method: "POST",
         headers: {
@@ -99,9 +99,9 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o-realtime-preview-2024-10-01", // Specify the exact model version
-          modalities: ["text", "audio"], // Enable both text and audio
-          voice: "alloy", // Default voice
+          model: "gpt-4o-realtime-preview-2024-10-01",
+          modalities: ["text", "audio"],
+          voice: "alloy",
           input_audio_format: "pcm16",
           output_audio_format: "pcm16",
           input_audio_transcription: {
@@ -110,7 +110,7 @@ serve(async (req) => {
             prompt: "Focus on accurate transcription of speech"
           },
           turn_detection: {
-            type: "server_vad", // Use server-side voice activity detection
+            type: "server_vad",
             threshold: 0.5,
             prefix_padding_ms: 300,
             silence_duration_ms: 800,
@@ -125,15 +125,20 @@ serve(async (req) => {
             return;
           }
           
+          // Store the session ID
+          sessionId = data.session_id;
+          console.log("Session created with ID:", sessionId);
+          
           // Send initial request with ephemeral token
           const EPHEMERAL_KEY = data.client_secret.value;
           openAISocket.send(`Authorization: Bearer ${EPHEMERAL_KEY}\r\n` +
                            'Content-Type: application/json\r\n' +
                            '\r\n');
           
-          // Send token to client
+          // Send token and session ID to client
           socket.send(JSON.stringify({ 
             type: "token_received",
+            session_id: sessionId,
             message: "Connected to OpenAI" 
           }));
           
@@ -211,6 +216,10 @@ serve(async (req) => {
 
     socket.onclose = (event) => {
       console.log("Client connection closed with code:", event.code, "reason:", event.reason);
+      if (sessionId) {
+        console.log("Cleaning up session:", sessionId);
+        // Note: Session will auto-expire but we log it for tracking
+      }
       openAISocket.close();
     };
 
