@@ -58,9 +58,13 @@ export const useLearnieVoice = () => {
       source.connect(processor);
       processor.connect(audioContextRef.current.destination);
 
+      // Create a local reference to track current phase for closures
+      let currentPhase: Phase = 'listen';
+      setPhase('listen');
+
       processor.onaudioprocess = (e) => {
-        // Fixed comparison - compare with 'listen' as a Phase type
-        if (phase === 'listen' && socketRef.current?.readyState === WebSocket.OPEN) {
+        // Use the current phase reference instead of the state variable directly
+        if (currentPhase === 'listen' && socketRef.current?.readyState === WebSocket.OPEN) {
           const inputData = e.inputBuffer.getChannelData(0);
           const pcmData = new Float32Array(inputData);
           
@@ -79,10 +83,12 @@ export const useLearnieVoice = () => {
           
           if (data.type === 'response.audio.delta') {
             setPhase('speak');
+            currentPhase = 'speak'; // Update the local reference
             const audioData = decodeAudioData(data.delta);
             playAudioData(audioData);
           } else if (data.type === 'response.audio.done') {
             setPhase('listen');
+            currentPhase = 'listen'; // Update the local reference
           }
         } catch (error) {
           console.error('Error processing message:', error);
@@ -93,8 +99,6 @@ export const useLearnieVoice = () => {
       socketRef.current.onclose = () => {
         cleanup();
       };
-
-      setPhase('listen');
       
       toast({
         title: "Connected",
