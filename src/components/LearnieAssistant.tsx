@@ -1,11 +1,22 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import VoiceButton from './VoiceButton';
 import AudioWaves from './AudioWaves';
+import { WebSocketManager } from '@/utils/WebSocketManager';
 
 const LearnieAssistant: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+
+  // Cleanup WebSocket on component unmount
+  useEffect(() => {
+    return () => {
+      const wsManager = WebSocketManager.getInstance();
+      if (wsManager.isConnected()) {
+        wsManager.disconnect();
+      }
+    };
+  }, []);
 
   const getStatusText = () => {
     if (isRecording) return "I'm listening...";

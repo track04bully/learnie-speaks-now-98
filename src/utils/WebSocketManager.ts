@@ -18,12 +18,17 @@ export class WebSocketManager {
   private isProcessingResponse: boolean = false;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 3;
+  private inactivityTimeout: NodeJS.Timeout | null = null;
+  private sessionTimeoutDuration: number = 5 * 60 * 1000; // 5 minutes of inactivity
 
   private constructor() {
     this.audioManager = new AudioManager((isSpeaking) => {
       if (this.lastLearnieCallback) {
         this.lastLearnieCallback.onSpeakingChange(isSpeaking);
       }
+      
+      // Reset inactivity timeout when speaking starts/stops
+      this.resetInactivityTimeout();
     });
     this.audioRecorder = new AudioRecorder(
       (audioData) => this.handleAudioData(audioData),
@@ -41,6 +46,7 @@ export class WebSocketManager {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.ws?.readyState === WebSocket.OPEN) {
+        this.resetInactivityTimeout();
         resolve();
         return;
       }
@@ -52,6 +58,7 @@ export class WebSocketManager {
         console.log("WebSocket connected");
         this.reconnectAttempts = 0;
         this.sendSessionConfig();
+        this.resetInactivityTimeout();
         resolve();
       };
 
@@ -80,6 +87,9 @@ export class WebSocketManager {
     try {
       const data = JSON.parse(event.data);
       console.log("Received message:", data);
+
+      // Reset inactivity timeout on any message from server
+      this.resetInactivityTimeout();
 
       switch (data.type) {
         case 'response.audio.delta':
@@ -131,9 +141,26 @@ export class WebSocketManager {
       clearTimeout(this.silenceTimeout);
     }
     
+    // Reset inactivity timeout since user is active
+    this.resetInactivityTimeout();
+    
     // Send raw PCM data directly through WebSocket
     this.ws.send(audioData);
     console.log('Sent audio chunk:', audioData.byteLength, 'bytes');
+  }
+
+  private resetInactivityTimeout() {
+    // Clear existing timeout if any
+    if (this.inactivityTimeout) {
+      clearTimeout(this.inactivityTimeout);
+      this.inactivityTimeout = null;
+    }
+
+    // Set a new timeout
+    this.inactivityTimeout = setTimeout(() => {
+      console.log(`Session inactive for ${this.sessionTimeoutDuration/60000} minutes, closing connection`);
+      this.disconnect();
+    }, this.sessionTimeoutDuration);
   }
 
   private sendSessionConfig() {
@@ -179,6 +206,9 @@ export class WebSocketManager {
       await this.connect();
     }
 
+    // Reset the inactivity timeout since the user is starting to interact
+    this.resetInactivityTimeout();
+
     // Set a timeout to automatically stop recording after 30 seconds
     this.autoStopTimeout = setTimeout(() => {
       this.stopRecording("Recording timed out. Tap to try again.");
@@ -203,9 +233,28 @@ export class WebSocketManager {
       this.audioRecorder.stop();
       console.log('Recording stopped', message ? `with message: ${message}` : '');
     }
+
+    // Reset inactivity timeout since this is an interaction point
+    this.resetInactivityTimeout();
   }
 
   disconnect() {
+    console.log('Closing WebSocket connection and cleaning up resources');
+    
+    // Clear all timeouts
+    if (this.inactivityTimeout) {
+      clearTimeout(this.inactivityTimeout);
+      this.inactivityTimeout = null;
+    }
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
+    }
+    if (this.autoStopTimeout) {
+      clearTimeout(this.autoStopTimeout);
+      this.autoStopTimeout = null;
+    }
+
     this.isProcessingResponse = false;
     if (this.ws) {
       this.ws.close();
@@ -228,6 +277,9 @@ export class WebSocketManager {
       }));
     }
     this.stopRecording();
+    
+    // Reset inactivity timeout since this is an interaction point
+    this.resetInactivityTimeout();
   }
 
   interruptSpeaking() {
@@ -250,5 +302,8 @@ export class WebSocketManager {
     if (this.lastLearnieCallback) {
       this.lastLearnieCallback.onSpeakingChange(false);
     }
+    
+    // Reset inactivity timeout since this is an interaction point
+    this.resetInactivityTimeout();
   }
 }

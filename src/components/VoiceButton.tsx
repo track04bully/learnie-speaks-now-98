@@ -29,6 +29,10 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       const wsManager = WebSocketManager.getInstance();
       
       if (!wsManager.isConnected()) {
+        toast({
+          title: "Connecting...",
+          description: "Setting up your conversation with Learnie",
+        });
         await wsManager.connect();
       }
 
@@ -69,7 +73,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       onRecordingChange(false);
       toast({
         title: "Error",
-        description: "Could not access microphone. Please make sure it's connected and allowed.",
+        description: error instanceof Error ? error.message : 'Could not access microphone. Please make sure it\'s connected and allowed.',
         variant: "destructive",
       });
     }
