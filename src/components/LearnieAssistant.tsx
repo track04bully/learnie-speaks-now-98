@@ -15,14 +15,46 @@ const LearnieAssistant: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const webSocketRef = useRef<WebSocket | null>(null);
   const recorderRef = useRef<AudioRecorder | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    audioContextRef.current = new AudioContext({
+      sampleRate: 24000,
+    });
+    return () => {
+      audioContextRef.current?.close();
+    };
+  }, []);
+
+  const playAudioChunk = async (base64Audio: string) => {
+    if (!audioContextRef.current) return;
+    
+    const binaryString = atob(base64Audio);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    try {
+      const audioBuffer = await audioContextRef.current.decodeAudioData(bytes.buffer);
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+      source.start(0);
+      setIsSpeaking(true);
+      source.onended = () => setIsSpeaking(false);
+    } catch (error) {
+      console.error('Error playing audio chunk:', error);
+    }
+  };
 
   const connectToWebSocket = async () => {
     try {
       setIsConnecting(true);
-      // Fix the WebSocket URL construction
       const wsUrl = `wss://ceofrvinluwymyuizztv.functions.supabase.co/realtime-chat`;
       const ws = new WebSocket(wsUrl);
       
@@ -30,6 +62,30 @@ const LearnieAssistant: React.FC = () => {
         console.log('WebSocket connected');
         setIsConnecting(false);
         webSocketRef.current = ws;
+
+        // Send initial session configuration
+        ws.send(JSON.stringify({
+          event_id: "event_123",
+          type: "session.update",
+          session: {
+            modalities: ["text", "audio"],
+            instructions: "You are Learnie, a friendly and knowledgeable AI assistant. Your voice is warm and approachable. Keep your responses concise and helpful.",
+            voice: "alloy",
+            input_audio_format: "pcm16",
+            output_audio_format: "pcm16",
+            input_audio_transcription: {
+              model: "whisper-1"
+            },
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 1000
+            },
+            temperature: 0.8,
+            max_response_output_tokens: "inf"
+          }
+        }));
       };
 
       ws.onclose = () => {
@@ -55,12 +111,11 @@ const LearnieAssistant: React.FC = () => {
         console.log('Received message:', data);
         
         if (data.type === 'response.audio_transcript.delta') {
-          // Handle transcription updates
           console.log('Transcript:', data.delta);
         } else if (data.type === 'response.audio.delta') {
-          // Handle audio playback
-          const audioData = atob(data.delta);
-          // Audio playback logic here
+          playAudioChunk(data.delta);
+        } else if (data.type === 'response.audio.done') {
+          setIsSpeaking(false);
         }
       };
 
@@ -133,7 +188,7 @@ const LearnieAssistant: React.FC = () => {
         />
       </div>
       
-      <AudioWaves isActive={isRecording} />
+      <AudioWaves isActive={isRecording || isSpeaking} />
       
       <p className="text-lg md:text-xl font-fredoka text-center max-w-md text-kinder-black">
         {isConnecting 
@@ -142,7 +197,9 @@ const LearnieAssistant: React.FC = () => {
             ? "Learnie is thinking..." 
             : isRecording 
               ? "Learnie is listening! What would you like to know?" 
-              : "Tap the button and ask Learnie anything!"}
+              : isSpeaking
+                ? "Learnie is speaking..."
+                : "Tap the button and ask Learnie anything!"}
       </p>
     </div>
   );
