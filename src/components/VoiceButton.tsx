@@ -1,8 +1,8 @@
-
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { WebSocketManager } from '@/utils/WebSocketManager';
+import { useToast } from '@/hooks/use-toast';
 import { Mic, MicOff, Speaker } from 'lucide-react';
-import { useLearnieVoice } from '@/hooks/useLearnieVoice';
 
 interface VoiceButtonProps {
   isRecording: boolean;
@@ -17,17 +17,67 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   onSpeakingChange,
   onRecordingChange
 }) => {
-  const { isConnecting, handleStartVoice } = useLearnieVoice();
+  const { toast } = useToast();
+  const [isConnecting, setIsConnecting] = useState(false);
 
-  const handleClick = () => {
-    handleStartVoice(onSpeakingChange, onRecordingChange, isSpeaking, isRecording);
-  };
+  const handleClick = useCallback(async () => {
+    try {
+      const wsManager = WebSocketManager.getInstance();
+      
+      // If already speaking or recording, stop
+      if (isSpeaking || isRecording) {
+        wsManager.disconnect();
+        onRecordingChange(false);
+        onSpeakingChange(false);
+        return;
+      }
+
+      // Start new recording
+      if (!wsManager.isConnected()) {
+        setIsConnecting(true);
+        toast({
+          title: "Hi there!",
+          description: "Learnie is getting ready to listen",
+        });
+        
+        try {
+          await wsManager.connect();
+          setIsConnecting(false);
+        } catch (error) {
+          setIsConnecting(false);
+          toast({
+            title: "Oops!",
+            description: "Let's try that again!",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      await wsManager.startRecording(onSpeakingChange, (error) => {
+        toast({
+          title: "Oops!",
+          description: "Let's try that again!",
+          variant: "destructive",
+        });
+      });
+      onRecordingChange(true);
+      
+    } catch (error) {
+      console.error("Error:", error);
+      toast({
+        title: "Oops!",
+        description: "Let's try that again!",
+        variant: "destructive",
+      });
+    }
+  }, [isRecording, isSpeaking, toast, onRecordingChange, onSpeakingChange]);
 
   return (
     <button
       onClick={handleClick}
       disabled={isConnecting}
-      aria-label={isConnecting ? "Connecting..." : isRecording ? "Stop talking" : isSpeaking ? "Tap to talk" : "Start talking"}
+      aria-label={isConnecting ? "Connecting..." : isRecording ? "Stop talking" : isSpeaking ? "Interrupt Learnie" : "Start talking"}
       className={cn(
         "relative w-40 h-40 md:w-56 md:h-56 text-white text-2xl md:text-4xl",
         "font-baloo font-bold transition-all duration-300 shadow-lg",
@@ -36,7 +86,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         "rounded-[45%_55%_52%_48%_/_48%_45%_55%_52%]",
         isConnecting ? "bg-gray-400 cursor-wait" :
         isRecording ? "bg-kinder-red animate-pulse" : 
-        isSpeaking ? "bg-kinder-purple hover:bg-kinder-red cursor-pointer" : 
+        isSpeaking ? "bg-kinder-purple opacity-90 cursor-pointer" : // Make it clear it's clickable when speaking
         "bg-kinder-purple hover:bg-kinder-red",
         "cursor-pointer"
       )}
@@ -68,6 +118,11 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           )}
         </div>
       </div>
+      {errorMessage && (
+        <div className="absolute -bottom-12 left-0 right-0 text-center text-sm text-red-500 animate-fade-in">
+          {errorMessage}
+        </div>
+      )}
       
       {/* Connection status */}
       {isConnecting && (
@@ -81,7 +136,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         {isRecording ? (
           <span className="text-kinder-red">I'm listening!</span>
         ) : isSpeaking ? (
-          <span className="text-kinder-purple">Tap to talk!</span>
+          <span className="text-kinder-purple">Tap to interrupt</span>
         ) : isConnecting ? (
           <span>Getting ready...</span>
         ) : (
