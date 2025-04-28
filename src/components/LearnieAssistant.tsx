@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { createClient } from '@supabase/supabase-js';
 import { AudioRecorder, encodeAudioForAPI } from '@/utils/RealtimeAudio';
 
+// Fix the Supabase URL by ensuring it has the proper format with https://
 const supabaseUrl = 'https://ceofrvinluwymyuizztv.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNlb2ZydmlubHV3eW15dWl6enR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU4MjAxMzQsImV4cCI6MjA2MTM5NjEzNH0.XjtcGkSeRUyFFQhnFgduCnqUcz_pM0j7W6d-tDG-7lY';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -21,7 +22,9 @@ const LearnieAssistant: React.FC = () => {
   const connectToWebSocket = async () => {
     try {
       setIsConnecting(true);
-      const ws = new WebSocket(`wss://${supabaseUrl.split('//')[1]}/functions/v1/realtime-chat`);
+      // Fix the WebSocket URL construction
+      const wsUrl = `wss://ceofrvinluwymyuizztv.functions.supabase.co/realtime-chat`;
+      const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
         console.log('WebSocket connected');
