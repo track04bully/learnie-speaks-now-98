@@ -39,12 +39,13 @@ serve(async (req) => {
     openAISocket.onopen = () => {
       console.log("Connected to OpenAI")
       
-      // Send initial session configuration
+      // Send initial session configuration with an event ID
       const sessionConfig = {
         type: "session.update",
+        event_id: `evt_${Date.now()}`,
         session: {
           modalities: ["text", "audio"],
-          instructions: "You are a helpful AI assistant.",
+          instructions: "You are a friendly learning companion who speaks clearly and simply.",
           voice: "alloy",
           input_audio_format: "pcm16",
           output_audio_format: "pcm16",
@@ -63,6 +64,7 @@ serve(async (req) => {
       }
       
       openAISocket.send(JSON.stringify(sessionConfig))
+      console.log("Session configuration sent:", sessionConfig)
       
       // Forward messages from client to OpenAI
       socket.onmessage = async ({ data }) => {
