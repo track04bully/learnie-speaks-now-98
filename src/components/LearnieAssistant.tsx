@@ -30,9 +30,13 @@ const LearnieAssistant: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center gap-8">
-      <h1 className="text-4xl md:text-6xl font-fredoka text-center text-kinder-purple">
-        Ask <span className="text-kinder-red">Learnie!</span>
-      </h1>
+      <div className="w-48 md:w-64">
+        <img 
+          src="/lovable-uploads/67cfaea7-3e82-4718-a6e1-342a6d724463.png"
+          alt="Learnie"
+          className="w-full h-auto"
+        />
+      </div>
       
       <div 
         className="relative p-4 md:p-6"
