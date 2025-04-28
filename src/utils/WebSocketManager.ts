@@ -1,4 +1,3 @@
-
 import { AudioRecorder } from './AudioRecorder';
 import { AudioManager } from './AudioManager';
 
@@ -189,20 +188,32 @@ export class WebSocketManager {
     // Reset inactivity timeout since user is active
     this.resetInactivityTimeout();
     
+    // First, create the audio buffer if it hasn't been created yet
+    if (!this.audioBufferCreated) {
+      const createMessage = {
+        type: "input_audio_buffer.create",
+        format: "pcm16",
+        name: "mic"
+      };
+      this.sendJsonEvent(createMessage);
+      console.log('Created audio buffer with proper format');
+      this.audioBufferCreated = true;
+    }
+    
     // Convert ArrayBuffer to base64 for JSON transmission
     const base64Audio = this.arrayBufferToBase64(audioData);
     
     // Send JSON formatted message according to OpenAI's WebSocket API spec
-    const message = {
+    const appendMessage = {
       type: "input_audio_buffer.append",
+      name: "mic", // Must match the name in create message
       audio: base64Audio
     };
     
-    this.sendJsonEvent(message);
+    this.sendJsonEvent(appendMessage);
     console.log('Sent audio chunk with proper JSON formatting:', audioData.byteLength, 'bytes');
   }
   
-  // Helper method to convert ArrayBuffer to base64
   private arrayBufferToBase64(buffer: ArrayBuffer): string {
     let binary = '';
     const bytes = new Uint8Array(buffer);
@@ -251,7 +262,6 @@ export class WebSocketManager {
     }
   }
 
-  // Send a custom JSON event with validation
   sendJsonEvent(event: any) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error("Cannot send event: WebSocket not connected");
