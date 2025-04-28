@@ -99,8 +99,7 @@ serve(async (req) => {
             type: "server_vad",
             threshold: 0.5,
             prefix_padding_ms: 300,
-            silence_duration_ms: 800,
-            max_timeout_ms: 2000
+            silence_duration_ms: 800
           }
         }),
       });
@@ -166,8 +165,7 @@ serve(async (req) => {
             type: "server_vad",
             threshold: 0.5,
             prefix_padding_ms: 300,
-            silence_duration_ms: 800,
-            max_timeout_ms: 2000
+            silence_duration_ms: 800
           }
         }),
       }).then(response => response.json())
@@ -229,8 +227,7 @@ serve(async (req) => {
                       type: "server_vad",
                       threshold: 0.5,
                       prefix_padding_ms: 300,
-                      silence_duration_ms: 1000,
-                      max_timeout_ms: 2000
+                      silence_duration_ms: 1000
                     }
                   }
                 };
