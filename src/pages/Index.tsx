@@ -13,11 +13,7 @@ const Index = () => {
           Classroom Hub
         </h1>
         <div className="max-w-xl mx-auto">
-          <img 
-            src="/lovable-uploads/2445b60c-1540-4884-86fe-135563dcd202.png"
-            alt="Educational tools"
-            className="w-full h-auto"
-          />
+          <LearnieAssistant />
         </div>
         <div className="mt-6 bg-white rounded-full py-3 px-6 inline-block shadow-md">
           <input
