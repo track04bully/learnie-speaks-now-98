@@ -1,13 +1,16 @@
 import { AudioRecorder } from './AudioRecorder';
+import { AudioManager } from './AudioManager';
 
 export class WebSocketManager {
   private static instance: WebSocketManager;
   private ws: WebSocket | null = null;
   private projectId = "ceofrvinluwymyuizztv";
   private audioRecorder: AudioRecorder | null = null;
+  private audioManager: AudioManager;
   private autoStopTimeout: number | null = null;
 
   private constructor() {
+    this.audioManager = new AudioManager();
     this.audioRecorder = new AudioRecorder(
       (audioData) => this.handleAudioData(audioData),
       () => this.handleSilence()
@@ -53,7 +56,9 @@ export class WebSocketManager {
 
       switch (data.type) {
         case 'response.audio.delta':
-          // Handle incoming audio
+          if (data.delta) {
+            this.audioManager.addAudioChunk(data.delta);
+          }
           break;
         case 'response.audio_transcript.delta':
           // Handle transcription updates
@@ -135,6 +140,7 @@ export class WebSocketManager {
       this.ws.close();
       this.ws = null;
     }
+    this.audioManager.stop();
   }
 
   isConnected(): boolean {
