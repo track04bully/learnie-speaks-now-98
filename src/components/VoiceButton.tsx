@@ -1,5 +1,5 @@
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
 import { useToast } from '@/hooks/use-toast';
@@ -19,8 +19,12 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   onRecordingChange
 }) => {
   const { toast } = useToast();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleClick = useCallback(async () => {
+    // Reset error message on new interaction
+    setErrorMessage(null);
+
     // Disable button interaction while speaking
     if (isSpeaking) return;
 
@@ -47,6 +51,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       }
     } catch (error) {
       console.error("Error:", error);
+      setErrorMessage("Connection lost. Tap to reconnect.");
+      onRecordingChange(false);
       toast({
         title: "Error",
         description: "Could not access microphone. Please make sure it's connected and allowed.",
@@ -95,6 +101,11 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           )}
         </div>
       </div>
+      {errorMessage && (
+        <div className="absolute -bottom-12 left-0 right-0 text-center text-sm text-red-500 animate-fade-in">
+          {errorMessage}
+        </div>
+      )}
     </button>
   );
 };

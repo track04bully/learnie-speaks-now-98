@@ -12,9 +12,12 @@ export class WebSocketManager {
   private projectId = "ceofrvinluwymyuizztv";
   private audioRecorder: AudioRecorder | null = null;
   private audioManager: AudioManager;
-  private autoStopTimeout: number | null = null;
+  private silenceTimeout: NodeJS.Timeout | null = null;
+  private autoStopTimeout: NodeJS.Timeout | null = null;
   private lastLearnieCallback: LearnieCallback | null = null;
   private isProcessingResponse: boolean = false;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 3;
 
   private constructor() {
     this.audioManager = new AudioManager((isSpeaking) => {
@@ -47,6 +50,7 @@ export class WebSocketManager {
 
       this.ws.onopen = () => {
         console.log("WebSocket connected");
+        this.reconnectAttempts = 0;
         this.sendSessionConfig();
         resolve();
       };
@@ -56,8 +60,20 @@ export class WebSocketManager {
         reject(error);
       };
 
+      this.ws.onclose = this.handleWebSocketClose.bind(this);
       this.ws.onmessage = this.handleMessage;
     });
+  }
+
+  private handleWebSocketClose() {
+    console.log("WebSocket closed");
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      setTimeout(() => this.connect(), 1000 * this.reconnectAttempts);
+    } else {
+      this.stopRecording("Connection lost. Tap to reconnect.");
+    }
   }
 
   private handleMessage = (event: MessageEvent) => {
@@ -90,13 +106,35 @@ export class WebSocketManager {
         case 'session.created':
           console.log("Session created successfully");
           break;
-        default:
-          console.log("Unhandled message type:", data.type);
       }
     } catch (error) {
       console.error("Error handling message:", error);
     }
   };
+
+  private handleSilence() {
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+    }
+
+    this.silenceTimeout = setTimeout(() => {
+      console.log('Extended silence detected, stopping recording');
+      this.stopRecording("I didn't catch that. Tap to try again.");
+    }, 5000); // 5 seconds of silence
+  }
+
+  private handleAudioData(audioData: ArrayBuffer) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    
+    // Reset silence timeout since we received audio
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+    }
+    
+    // Send raw PCM data directly through WebSocket
+    this.ws.send(audioData);
+    console.log('Sent audio chunk:', audioData.byteLength, 'bytes');
+  }
 
   private sendSessionConfig() {
     if (this.ws?.readyState !== WebSocket.OPEN) return;
@@ -128,19 +166,6 @@ export class WebSocketManager {
     this.ws.send(JSON.stringify(sessionConfig));
   }
 
-  private handleAudioData(audioData: ArrayBuffer) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    
-    // Send raw PCM data directly through WebSocket
-    this.ws.send(audioData);
-    console.log('Sent audio chunk:', audioData.byteLength, 'bytes');
-  }
-
-  private handleSilence() {
-    console.log('Local silence detected, stopping audio recording');
-    this.stopRecording();
-  }
-
   async startRecording(onSpeakingChange?: (isSpeaking: boolean) => void) {
     if (!this.audioRecorder) return;
     
@@ -153,15 +178,30 @@ export class WebSocketManager {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect();
     }
+
+    // Set a timeout to automatically stop recording after 30 seconds
+    this.autoStopTimeout = setTimeout(() => {
+      this.stopRecording("Recording timed out. Tap to try again.");
+    }, 30000);
     
     await this.audioRecorder.start();
     console.log('Recording started');
   }
 
-  stopRecording() {
+  stopRecording(message?: string) {
+    // Clear all timeouts
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
+    }
+    if (this.autoStopTimeout) {
+      clearTimeout(this.autoStopTimeout);
+      this.autoStopTimeout = null;
+    }
+
     if (this.audioRecorder) {
       this.audioRecorder.stop();
-      console.log('Recording stopped');
+      console.log('Recording stopped', message ? `with message: ${message}` : '');
     }
   }
 
@@ -172,6 +212,7 @@ export class WebSocketManager {
       this.ws = null;
     }
     this.audioManager.stop();
+    this.stopRecording();
   }
 
   isConnected(): boolean {
