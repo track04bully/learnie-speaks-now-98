@@ -165,14 +165,14 @@ export class WebSocketManager {
   };
 
   private handleSilence() {
-    console.log('Silence detected - auto-processing response');
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      // Tell the server to process whatever audio we have
-      this.sendJsonEvent({
-        type: 'input_audio_buffer.commit'
-      });
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
     }
-    this.stopRecording();
+
+    this.silenceTimeout = setTimeout(() => {
+      console.log('Extended silence detected, stopping recording');
+      this.stopRecording("I didn't catch that. Tap to try again.");
+    }, 5000); // 5 seconds of silence
   }
 
   private handleAudioData(audioData: ArrayBuffer) {
@@ -268,14 +268,13 @@ export class WebSocketManager {
     // Reset the inactivity timeout since the user is starting to interact
     this.resetInactivityTimeout();
 
-    // Set up silence detection - after 2 seconds of silence, automatically process
-    if (this.silenceTimeout) {
-      clearTimeout(this.silenceTimeout);
-      this.silenceTimeout = null;
-    }
-
+    // Set a timeout to automatically stop recording after 30 seconds
+    this.autoStopTimeout = setTimeout(() => {
+      this.stopRecording("Recording timed out. Tap to try again.");
+    }, 30000);
+    
     await this.audioRecorder.start();
-    console.log('Recording started - silence detection enabled');
+    console.log('Recording started');
   }
 
   stopRecording(message?: string) {
