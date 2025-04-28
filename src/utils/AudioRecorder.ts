@@ -1,11 +1,10 @@
-
 export class AudioRecorder {
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
 
-  constructor(private onAudioData: (audioData: Float32Array) => void) {}
+  constructor(private onAudioData: (audioData: ArrayBuffer) => void) {}
 
   async start() {
     try {
@@ -23,16 +22,14 @@ export class AudioRecorder {
         sampleRate: 24000,
       });
       
-      // Load and initialize the audio worklet
       await this.audioContext.audioWorklet.addModule('/audioWorkletProcessor.js');
       
       this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');
       this.source = this.audioContext.createMediaStreamSource(this.stream);
       
-      // Handle PCM data from the worklet
+      // Handle raw PCM data from the worklet
       this.workletNode.port.onmessage = (event) => {
-        const pcmData = event.data;
-        this.onAudioData(new Float32Array(pcmData));
+        this.onAudioData(event.data);
       };
       
       this.source.connect(this.workletNode);

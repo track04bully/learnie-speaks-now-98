@@ -97,26 +97,13 @@ export class WebSocketManager {
     this.ws.send(JSON.stringify(sessionConfig));
   }
 
-  private handleAudioData(audioData: Float32Array) {
+  private handleAudioData(audioData: ArrayBuffer) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-
-    // The audio data is already in Int16Array format from the AudioWorklet
-    const uint8Array = new Uint8Array(audioData.buffer);
-    let binary = '';
-    const chunkSize = 0x8000;
     
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
-      binary += String.fromCharCode.apply(null, Array.from(chunk));
-    }
+    // Send raw PCM data directly through WebSocket
+    this.ws.send(audioData);
     
-    const base64Audio = btoa(binary);
-    
-    // Send audio data to the server
-    this.ws.send(JSON.stringify({
-      type: 'input_audio_buffer.append',
-      audio: base64Audio
-    }));
+    console.log('Sent audio chunk:', audioData.byteLength, 'bytes');
   }
 
   async startRecording() {
