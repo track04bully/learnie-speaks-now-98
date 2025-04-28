@@ -1,10 +1,17 @@
+
 export class AudioRecorder {
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
+  private onSilenceCallback: (() => void) | null = null;
 
-  constructor(private onAudioData: (audioData: ArrayBuffer) => void) {}
+  constructor(
+    private onAudioData: (audioData: ArrayBuffer) => void,
+    onSilence?: () => void
+  ) {
+    this.onSilenceCallback = onSilence || null;
+  }
 
   async start() {
     try {
@@ -27,9 +34,13 @@ export class AudioRecorder {
       this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');
       this.source = this.audioContext.createMediaStreamSource(this.stream);
       
-      // Handle raw PCM data from the worklet
+      // Handle messages from the worklet
       this.workletNode.port.onmessage = (event) => {
-        this.onAudioData(event.data);
+        if (event.data.type === 'silence_detected' && this.onSilenceCallback) {
+          this.onSilenceCallback();
+        } else if (event.data.type === 'audio_data') {
+          this.onAudioData(event.data.data);
+        }
       };
       
       this.source.connect(this.workletNode);

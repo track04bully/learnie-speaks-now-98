@@ -5,11 +5,13 @@ export class WebSocketManager {
   private ws: WebSocket | null = null;
   private projectId = "ceofrvinluwymyuizztv";
   private audioRecorder: AudioRecorder | null = null;
+  private autoStopTimeout: number | null = null;
 
   private constructor() {
-    this.audioRecorder = new AudioRecorder((audioData) => {
-      this.handleAudioData(audioData);
-    });
+    this.audioRecorder = new AudioRecorder(
+      (audioData) => this.handleAudioData(audioData),
+      () => this.handleSilence()
+    );
   }
 
   static getInstance() {
@@ -102,8 +104,12 @@ export class WebSocketManager {
     
     // Send raw PCM data directly through WebSocket
     this.ws.send(audioData);
-    
     console.log('Sent audio chunk:', audioData.byteLength, 'bytes');
+  }
+
+  private handleSilence() {
+    console.log('Local silence detected, stopping audio recording');
+    this.stopRecording();
   }
 
   async startRecording() {
