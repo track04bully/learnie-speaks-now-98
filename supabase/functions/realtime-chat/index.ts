@@ -1,5 +1,4 @@
 
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
@@ -27,7 +26,7 @@ serve(async (req) => {
 
       console.log("Requesting ephemeral token from OpenAI");
       
-      // Request an ephemeral token from OpenAI optimized for real-time transcription
+      // Request an ephemeral token from OpenAI specifically for realtime model
       const tokenResponse = await fetch("https://api.openai.com/v1/realtime/sessions", {
         method: "POST",
         headers: {
@@ -35,21 +34,19 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o-realtime-preview-2024-10-01",
-          modalities: ["text"],  // Focus on text transcription
+          model: "gpt-4o-realtime-preview-2024-10-01", // Specify the exact model version
+          modalities: ["text", "audio"], // Enable both text and audio
+          voice: "alloy", // Default voice
           input_audio_format: "pcm16",
+          output_audio_format: "pcm16",
           input_audio_transcription: {
             model: "whisper-1",
-            language: "en",  // Default to English
-            prompt: "Focus on accurate transcription of children's speech"
-          },
-          input_audio_noise_reduction: {
-            type: "aggressive",  // More aggressive noise reduction for better transcription
-            threshold: 10
+            language: "en",
+            prompt: "Focus on accurate transcription of speech"
           },
           turn_detection: {
-            type: "semantic_vad",  // Use semantic VAD for better turn detection
-            threshold: 0.6,
+            type: "server_vad", // Use server-side voice activity detection
+            threshold: 0.5,
             prefix_padding_ms: 300,
             silence_duration_ms: 800,
             max_timeout_ms: 2000
@@ -102,17 +99,19 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o-realtime-preview-2024-10-01",
-          modalities: ["text"],
+          model: "gpt-4o-realtime-preview-2024-10-01", // Specify the exact model version
+          modalities: ["text", "audio"], // Enable both text and audio
+          voice: "alloy", // Default voice
           input_audio_format: "pcm16",
+          output_audio_format: "pcm16",
           input_audio_transcription: {
             model: "whisper-1",
             language: "en",
-            prompt: "Focus on accurate transcription of children's speech"
+            prompt: "Focus on accurate transcription of speech"
           },
           turn_detection: {
-            type: "semantic_vad",
-            threshold: 0.6,
+            type: "server_vad", // Use server-side voice activity detection
+            threshold: 0.5,
             prefix_padding_ms: 300,
             silence_duration_ms: 800,
             max_timeout_ms: 2000
@@ -121,7 +120,7 @@ serve(async (req) => {
       }).then(response => response.json())
         .then(data => {
           if (!data.client_secret?.value) {
-            console.error("No client secret in OpenAI response");
+            console.error("No client secret in OpenAI response:", data);
             socket.close(1011, "Failed to get ephemeral token");
             return;
           }
@@ -137,6 +136,45 @@ serve(async (req) => {
             type: "token_received",
             message: "Connected to OpenAI" 
           }));
+          
+          // After receiving session.created event, we'll update the session
+          openAISocket.addEventListener('message', function sessionCreatedHandler(event) {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === "session.created") {
+                console.log("Session created, updating session config");
+                
+                // Update session with more detailed config
+                const sessionUpdateEvent = {
+                  event_id: "update_session_" + Date.now(),
+                  type: "session.update",
+                  session: {
+                    modalities: ["text", "audio"],
+                    instructions: "You are a helpful AI assistant specializing in providing accurate and clear information. Keep your responses concise and natural.",
+                    voice: "alloy",
+                    input_audio_format: "pcm16",
+                    output_audio_format: "pcm16",
+                    input_audio_transcription: {
+                      model: "whisper-1",
+                      language: "en"
+                    },
+                    turn_detection: {
+                      type: "server_vad",
+                      threshold: 0.5,
+                      prefix_padding_ms: 300,
+                      silence_duration_ms: 1000,
+                      max_timeout_ms: 2000
+                    }
+                  }
+                };
+                
+                openAISocket.send(JSON.stringify(sessionUpdateEvent));
+                openAISocket.removeEventListener('message', sessionCreatedHandler);
+              }
+            } catch (error) {
+              console.error("Error processing session.created:", error);
+            }
+          });
         })
         .catch(error => {
           console.error("Error getting ephemeral token:", error);
