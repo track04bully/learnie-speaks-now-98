@@ -10,7 +10,11 @@ export class WebSocketManager {
   private autoStopTimeout: number | null = null;
 
   private constructor() {
-    this.audioManager = new AudioManager();
+    this.audioManager = new AudioManager((isSpeaking) => {
+      if (this.lastLearnieCallback) {
+        this.lastLearnieCallback.onSpeakingChange(isSpeaking);
+      }
+    });
     this.audioRecorder = new AudioRecorder(
       (audioData) => this.handleAudioData(audioData),
       () => this.handleSilence()
@@ -117,8 +121,12 @@ export class WebSocketManager {
     this.stopRecording();
   }
 
-  async startRecording() {
+  async startRecording(onSpeakingChange?: (isSpeaking: boolean) => void) {
     if (!this.audioRecorder) return;
+    
+    this.lastLearnieCallback = {
+      onSpeakingChange: onSpeakingChange || (() => {}),
+    };
     
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect();

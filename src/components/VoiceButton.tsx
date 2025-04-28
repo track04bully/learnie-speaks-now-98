@@ -3,13 +3,26 @@ import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
 import { useToast } from '@/components/ui/use-toast';
-import { Mic, MicOff } from 'lucide-react';
+import { Mic, MicOff, Speaker } from 'lucide-react';
 
-const VoiceButton: React.FC = () => {
-  const [isRecording, setIsRecording] = useState(false);
+interface VoiceButtonProps {
+  isRecording: boolean;
+  isSpeaking: boolean;
+  onSpeakingChange: (isSpeaking: boolean) => void;
+  onRecordingChange: (isRecording: boolean) => void;
+}
+
+const VoiceButton: React.FC<VoiceButtonProps> = ({
+  isRecording,
+  isSpeaking,
+  onSpeakingChange,
+  onRecordingChange
+}) => {
   const { toast } = useToast();
 
   const handleClick = useCallback(async () => {
+    if (isSpeaking) return; // Disable button while speaking
+
     try {
       const wsManager = WebSocketManager.getInstance();
       
@@ -19,14 +32,14 @@ const VoiceButton: React.FC = () => {
 
       if (!isRecording) {
         await wsManager.startRecording();
-        setIsRecording(true);
+        onRecordingChange(true);
         toast({
           title: "Listening...",
           description: "Speak into your microphone",
         });
       } else {
         wsManager.stopRecording();
-        setIsRecording(false);
+        onRecordingChange(false);
         toast({
           title: "Stopped listening",
         });
@@ -39,18 +52,21 @@ const VoiceButton: React.FC = () => {
         variant: "destructive",
       });
     }
-  }, [isRecording, toast]);
+  }, [isRecording, isSpeaking, toast, onRecordingChange]);
 
   return (
     <button
       onClick={handleClick}
+      disabled={isSpeaking}
       className={cn(
         "relative w-40 h-40 md:w-56 md:h-56 text-white text-2xl md:text-4xl",
         "font-baloo font-bold transition-all duration-300 shadow-lg",
         "flex flex-col items-center justify-center gap-2 p-0 overflow-hidden",
         "hover:scale-105 hover:shadow-[0_0_30px_rgba(107,102,255,0.3)] transition-all duration-300",
         "rounded-[45%_55%_52%_48%_/_48%_45%_55%_52%]",
-        isRecording ? "bg-kinder-red animate-pulse" : "bg-kinder-purple hover:bg-kinder-red",
+        isRecording ? "bg-kinder-red animate-pulse" : 
+        isSpeaking ? "bg-kinder-purple opacity-75 cursor-not-allowed" : 
+        "bg-kinder-purple hover:bg-kinder-red",
         "cursor-pointer"
       )}
     >
@@ -58,13 +74,18 @@ const VoiceButton: React.FC = () => {
         <img 
           src="/lovable-uploads/95e3efc8-6cb7-4d38-8114-856ee02055c1.png"
           alt="Learnie character"
-          className="w-32 h-32 md:w-40 md:h-40 object-contain"
+          className={cn(
+            "w-32 h-32 md:w-40 md:h-40 object-contain",
+            isSpeaking && "animate-bounce-soft"
+          )}
         />
         <div className={cn(
           "absolute top-4 right-4 p-2 rounded-full",
-          isRecording ? "bg-white/20" : "bg-white/10"
+          isRecording || isSpeaking ? "bg-white/20" : "bg-white/10"
         )}>
-          {isRecording ? (
+          {isSpeaking ? (
+            <Speaker className="w-6 h-6 text-white animate-pulse" />
+          ) : isRecording ? (
             <Mic className="w-6 h-6 text-white animate-pulse" />
           ) : (
             <MicOff className="w-6 h-6 text-white/70" />

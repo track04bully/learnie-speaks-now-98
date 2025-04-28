@@ -5,13 +5,15 @@ export class AudioManager {
   private isPlaying: boolean = false;
   private gainNode: GainNode;
   private processingChunk: boolean = false;
+  private onSpeakingChange?: (isSpeaking: boolean) => void;
 
-  constructor() {
+  constructor(onSpeakingChange?: (isSpeaking: boolean) => void) {
     this.audioContext = new AudioContext({
       sampleRate: 24000,
     });
     this.gainNode = this.audioContext.createGain();
     this.gainNode.connect(this.audioContext.destination);
+    this.onSpeakingChange = onSpeakingChange;
   }
 
   async addAudioChunk(base64Audio: string) {
@@ -26,6 +28,7 @@ export class AudioManager {
       const audioBuffer = await this.decodeBase64ToPCM(base64Audio);
       
       if (!this.isPlaying) {
+        this.onSpeakingChange?.(true);
         await this.playBuffer(audioBuffer);
         this.processQueuedChunks();
       } else {
@@ -85,13 +88,14 @@ export class AudioManager {
         await this.playBuffer(nextBuffer);
       }
     }
+    this.onSpeakingChange?.(false);
   }
 
   stop() {
     this.audioQueue = [];
     this.isPlaying = false;
     this.processingChunk = false;
+    this.onSpeakingChange?.(false);
     this.audioContext.close();
   }
 }
-
