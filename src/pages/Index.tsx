@@ -4,7 +4,7 @@ import LearnieAssistant from '@/components/LearnieAssistant';
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-[#FFD95A] p-4 flex items-center justify-center">
+    <div className="min-h-screen bg-[#F1F0FB] p-4 flex items-center justify-center bg-[linear-gradient(109.6deg,_rgba(223,234,247,1)_11.2%,_rgba(244,248,252,1)_91.1%)]">
       {/* Header Section */}
       <div className="container mx-auto">
         <div className="w-48 md:w-64 mx-auto mb-8">
@@ -23,3 +23,4 @@ const Index = () => {
 };
 
 export default Index;
+
