@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
@@ -24,10 +23,8 @@ serve(async (req) => {
       throw new Error('OPENAI_API_KEY is not set')
     }
 
-    // Create WebSocket connection with required subprotocols
     const { socket, response } = Deno.upgradeWebSocket(req)
 
-    // Create connection to OpenAI with required subprotocols
     const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01"
     const openAISocket = new WebSocket(openAIUrl, [
       "realtime",
@@ -35,18 +32,16 @@ serve(async (req) => {
       "openai-beta.realtime-v1"
     ])
     
-    // Handle opening of OpenAI connection
     openAISocket.onopen = () => {
       console.log("Connected to OpenAI")
       
-      // Send initial session configuration with an event ID
       const sessionConfig = {
         type: "session.update",
         event_id: `evt_${Date.now()}`,
         session: {
           modalities: ["text", "audio"],
           instructions: "You are a friendly learning companion who speaks clearly and simply.",
-          voice: "alloy",
+          voice: "echo",
           input_audio_format: "pcm16",
           output_audio_format: "pcm16",
           input_audio_transcription: {
@@ -66,7 +61,6 @@ serve(async (req) => {
       openAISocket.send(JSON.stringify(sessionConfig))
       console.log("Session configuration sent:", sessionConfig)
       
-      // Forward messages from client to OpenAI
       socket.onmessage = async ({ data }) => {
         console.log("Received from client:", data)
         if (openAISocket.readyState === WebSocket.OPEN) {
@@ -74,7 +68,6 @@ serve(async (req) => {
         }
       }
 
-      // Forward messages from OpenAI to client
       openAISocket.onmessage = ({ data }) => {
         console.log("Received from OpenAI:", data)
         if (socket.readyState === WebSocket.OPEN) {
@@ -83,7 +76,6 @@ serve(async (req) => {
       }
     }
 
-    // Handle errors with detailed logging
     openAISocket.onerror = (error) => {
       console.error("OpenAI WebSocket error:", error)
       socket.close(1011, "Error connecting to OpenAI")
@@ -94,7 +86,6 @@ serve(async (req) => {
       openAISocket.close(1011, "Client connection error")
     }
 
-    // Clean up connections
     socket.onclose = () => {
       console.log("Client disconnected")
       if (openAISocket.readyState === WebSocket.OPEN) {
@@ -118,4 +109,3 @@ serve(async (req) => {
     })
   }
 })
-
