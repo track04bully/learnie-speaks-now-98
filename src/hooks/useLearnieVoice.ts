@@ -59,6 +59,7 @@ export const useLearnieVoice = () => {
       processor.connect(audioContextRef.current.destination);
 
       processor.onaudioprocess = (e) => {
+        // Fixed comparison - compare with 'listen' as a Phase type
         if (phase === 'listen' && socketRef.current?.readyState === WebSocket.OPEN) {
           const inputData = e.inputBuffer.getChannelData(0);
           const pcmData = new Float32Array(inputData);
