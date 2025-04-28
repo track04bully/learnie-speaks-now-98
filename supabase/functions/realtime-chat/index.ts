@@ -31,7 +31,7 @@ serve(async (req) => {
 
     console.log("Requesting ephemeral token from OpenAI");
     
-    // Request an ephemeral token from OpenAI with optimal speech-to-speech settings
+    // Request an ephemeral token from OpenAI optimized for real-time transcription
     const tokenResponse = await fetch("https://api.openai.com/v1/realtime/sessions", {
       method: "POST",
       headers: {
@@ -40,24 +40,24 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview-2024-10-01",
-        voice: "alloy",
+        modalities: ["text"],  // Focus on text transcription
         input_audio_format: "pcm16",
-        output_audio_format: "pcm16",
         input_audio_transcription: {
-          model: "whisper-1"
+          model: "whisper-1",
+          language: "en",  // Default to English
+          prompt: "Focus on accurate transcription of children's speech"
         },
         input_audio_noise_reduction: {
-          type: "subtle"
+          type: "aggressive",  // More aggressive noise reduction for better transcription
+          threshold: 10
         },
         turn_detection: {
-          type: "server_vad",
-          threshold: 0.5,
+          type: "semantic_vad",  // Use semantic VAD for better turn detection
+          threshold: 0.6,
           prefix_padding_ms: 300,
-          silence_duration_ms: 1000
-        },
-        instructions: "You are Learnie, a friendly 8-year-old guide who loves to help others learn. You speak in short, playful sentences and make learning fun! You're enthusiastic, positive, and good at explaining things in simple terms that kids can understand. You use examples from everyday life and encourage curiosity. You celebrate when someone understands a new concept. Remember to keep your answers brief and engaging!",
-        temperature: 0.8,
-        max_response_output_tokens: "inf"
+          silence_duration_ms: 800,
+          max_timeout_ms: 2000
+        }
       }),
     });
 
@@ -97,7 +97,7 @@ serve(async (req) => {
       }
     };
 
-    // Forward messages from OpenAI to client
+    // Forward transcription results from OpenAI to client
     openAISocket.onmessage = (event) => {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(event.data);
