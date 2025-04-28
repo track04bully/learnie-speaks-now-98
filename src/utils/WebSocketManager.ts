@@ -48,6 +48,8 @@ export class WebSocketManager {
 
   private handleMessage = (data: any) => {
     this.resetInactivityTimeout();
+    
+    console.log("Received message from server:", data.type);
 
     switch (data.type) {
       case 'response.audio.delta':
@@ -87,10 +89,13 @@ export class WebSocketManager {
   };
 
   private handleAudioData(audioData: ArrayBuffer) {
-    if (!this.wsConnection.isConnected()) return;
+    if (!this.wsConnection.isConnected()) {
+      console.log("WebSocket not connected, cannot send audio data");
+      return;
+    }
     
     if (!this.audioState.isSessionConfirmed()) {
-      console.log("Session not confirmed yet, buffering audio");
+      console.log("Session not confirmed yet, waiting before sending audio");
       return;
     }
     
@@ -149,8 +154,16 @@ export class WebSocketManager {
   }
 
   async connect(): Promise<void> {
-    await this.wsConnection.connect();
-    this.resetInactivityTimeout();
+    console.log("Attempting to connect to WebSocket server...");
+    
+    try {
+      await this.wsConnection.connect();
+      this.resetInactivityTimeout();
+      console.log("Connection established successfully");
+    } catch (error) {
+      console.error("Connection failed:", error);
+      throw error;
+    }
   }
 
   async startRecording(onSpeakingChange?: (isSpeaking: boolean) => void, onError?: (message: string) => void) {
@@ -163,16 +176,29 @@ export class WebSocketManager {
     
     this.audioState.setProcessingResponse(false);
     this.audioState.setAudioBufferCreated(false);
+    this.audioState.setSessionConfirmed(false);
     
     if (!this.wsConnection.isConnected()) {
-      await this.connect();
+      console.log("WebSocket not connected, connecting now");
+      try {
+        await this.connect();
+      } catch (error) {
+        console.error("Failed to connect:", error);
+        if (onError) onError("Connection failed. Please check your network and try again.");
+        return;
+      }
     }
 
     this.resetInactivityTimeout();
     this.audioState.setupAutoStop(() => this.stopRecording("Recording timed out. Tap to try again."));
     
-    await this.audioRecorder.start();
-    console.log('Recording started');
+    try {
+      await this.audioRecorder.start();
+      console.log('Recording started successfully');
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      if (onError) onError("Could not access microphone. Please ensure you've granted permission.");
+    }
   }
 
   stopRecording(message?: string) {

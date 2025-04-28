@@ -22,12 +22,25 @@ export class WebSocketConnection {
         return;
       }
 
+      // Close any existing connection
+      if (this.ws) {
+        this.ws.close();
+        this.ws = null;
+      }
+
       const wsUrl = `wss://${this.projectId}.functions.supabase.co/functions/v1/realtime-chat`;
       console.log("Connecting to WebSocket:", wsUrl);
-      this.ws = new WebSocket(wsUrl);
+      
+      try {
+        this.ws = new WebSocket(wsUrl);
+      } catch (error) {
+        console.error("Failed to create WebSocket:", error);
+        reject(new Error(`Failed to create WebSocket: ${error.message}`));
+        return;
+      }
 
       this.ws.onopen = () => {
-        console.log("WebSocket connected");
+        console.log("WebSocket connected successfully");
         this.reconnectAttempts = 0;
         
         this.sessionResponseTimeout = setTimeout(() => {
@@ -42,37 +55,59 @@ export class WebSocketConnection {
         resolve();
       };
 
-      this.ws.onerror = this.handleError.bind(this);
+      this.ws.onerror = (event) => {
+        console.error("WebSocket error:", event);
+        
+        if (this.lastLearnieCallback?.onError) {
+          if (navigator.onLine === false) {
+            this.lastLearnieCallback.onError("You appear to be offline. Please check your internet connection and try again.");
+          } else {
+            this.lastLearnieCallback.onError("Connection failed. Please try again in a moment.");
+          }
+        }
+        
+        // Reject the promise if it hasn't been resolved yet
+        reject(new Error("WebSocket connection failed"));
+      };
+      
       this.ws.onclose = this.handleClose.bind(this);
-      this.ws.onmessage = (event) => this.onMessage(JSON.parse(event.data));
+      this.ws.onmessage = (event) => {
+        try {
+          const parsedData = JSON.parse(event.data);
+          this.onMessage(parsedData);
+        } catch (error) {
+          console.error("Error parsing message:", error);
+        }
+      };
     });
   }
 
-  private handleError(error: Event) {
-    console.error("WebSocket error:", error);
-    if (this.lastLearnieCallback?.onError) {
-      this.lastLearnieCallback.onError("Connection failed. Please check your network and try again.");
-    }
-  }
-
   private handleClose(event: CloseEvent) {
-    console.log("WebSocket closed with code:", event.code, "reason:", event.reason);
+    console.log("WebSocket closed with code:", event.code, "reason:", event.reason || "No reason provided");
     
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+    if (this.reconnectAttempts < this.maxReconnectAttempts && navigator.onLine) {
       this.reconnectAttempts++;
       console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      setTimeout(() => this.connect(), 1000 * this.reconnectAttempts);
+      setTimeout(() => this.connect().catch(err => {
+        console.error("Reconnection attempt failed:", err);
+      }), 1000 * this.reconnectAttempts);
     } else {
       if (this.lastLearnieCallback?.onError) {
-        this.lastLearnieCallback.onError("Connection lost. Tap to reconnect.");
+        if (navigator.onLine === false) {
+          this.lastLearnieCallback.onError("You appear to be offline. Please check your internet connection.");
+        } else if (event.code === 1006) {
+          this.lastLearnieCallback.onError("Connection closed unexpectedly. Please try again.");
+        } else {
+          this.lastLearnieCallback.onError("Connection lost. Tap to reconnect.");
+        }
       }
+      this.onClose();
     }
-    this.onClose();
   }
 
   sendEvent(event: any): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.error("Cannot send event: WebSocket not connected");
+      console.error("Cannot send event: WebSocket not connected, readyState:", this.ws?.readyState);
       return false;
     }
     
@@ -95,6 +130,7 @@ export class WebSocketConnection {
     }
     
     if (this.ws) {
+      console.log("Closing WebSocket connection");
       this.ws.close();
       this.ws = null;
     }

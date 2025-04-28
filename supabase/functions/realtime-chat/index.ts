@@ -50,7 +50,7 @@ serve(async (req) => {
           console.error("Session configuration timed out - no response received")
           socket.close(1011, "Connection setup failed - no response from OpenAI")
         }
-      }, 5000)
+      }, 10000)
       
       const sessionConfig = {
         type: "session.update",
@@ -87,14 +87,14 @@ serve(async (req) => {
       
       socket.onmessage = async ({ data }) => {
         try {
-          console.log("Received from client:", data)
+          console.log("Received from client:", typeof data === 'string' ? data.substring(0, 100) + "..." : "Binary data")
           if (openAISocket.readyState === WebSocket.OPEN) {
             // For JSON messages, validate before sending
             if (typeof data === 'string' && data.startsWith('{')) {
               try {
                 const jsonData = JSON.parse(data)
                 lastSentEvent = jsonData
-                console.log("Sending JSON to OpenAI:", jsonData)
+                console.log("Sending JSON to OpenAI:", jsonData.type || "unknown event type")
                 openAISocket.send(data)
               } catch (e) {
                 console.error("Invalid JSON received from client:", e)
@@ -112,32 +112,48 @@ serve(async (req) => {
                 message: "Only JSON formatted messages are supported"
               }))
             }
+          } else {
+            console.error("Cannot send to OpenAI: Socket not open, state:", openAISocket.readyState)
+            socket.send(JSON.stringify({
+              type: "error",
+              message: "Connection to OpenAI lost"
+            }))
           }
         } catch (error) {
           console.error("Error processing message from client:", error)
+          socket.send(JSON.stringify({
+            type: "error",
+            message: "Failed to process message"
+          }))
         }
       }
 
       openAISocket.onmessage = ({ data }) => {
         try {
-          console.log("Received from OpenAI:", data)
+          console.log("Received from OpenAI:", typeof data === 'string' ? 
+            (data.length > 100 ? (data.includes('audio') ? "audio data..." : data.substring(0, 100) + "...") : data) : 
+            "Binary data")
           
           // Check if this is a response to our session config
-          if (typeof data === 'string' && data.includes('"type":"session.')) {
-            try {
-              const response = JSON.parse(data)
-              if (response.type === 'session.created' || response.type === 'session.updated') {
-                clearTimeout(connectionTimeout)
-                sessionConfigConfirmed = true
-                console.log(`Session ${response.type} confirmed`)
+          if (typeof data === 'string') {
+            if (data.includes('"type":"session.')) {
+              try {
+                const response = JSON.parse(data)
+                if (response.type === 'session.created' || response.type === 'session.updated') {
+                  clearTimeout(connectionTimeout)
+                  sessionConfigConfirmed = true
+                  console.log(`Session ${response.type} confirmed`)
+                }
+              } catch (e) {
+                console.error("Failed to parse session response:", e)
               }
-            } catch (e) {
-              console.error("Failed to parse session response:", e)
             }
           }
           
           if (socket.readyState === WebSocket.OPEN) {
             socket.send(data)
+          } else {
+            console.error("Cannot send to client: Socket not open, state:", socket.readyState)
           }
         } catch (error) {
           console.error("Error processing message from OpenAI:", error)
@@ -178,7 +194,7 @@ serve(async (req) => {
 
     socket.onclose = (event) => {
       clearTimeout(connectionTimeout)
-      console.log("Client disconnected with code:", event.code, "reason:", event.reason)
+      console.log("Client disconnected with code:", event.code, "reason:", event.reason || "No reason provided")
       if (openAISocket.readyState === WebSocket.OPEN) {
         openAISocket.close()
       }
@@ -186,7 +202,7 @@ serve(async (req) => {
 
     openAISocket.onclose = (event) => {
       clearTimeout(connectionTimeout)
-      console.log("OpenAI disconnected with code:", event.code, "reason:", event.reason)
+      console.log("OpenAI disconnected with code:", event.code, "reason:", event.reason || "No reason provided")
       if (socket.readyState === WebSocket.OPEN) {
         socket.close(1011, `OpenAI disconnected: ${event.reason || 'Unknown reason'}`)
       }
