@@ -66,14 +66,17 @@ export class WebSocketConnection {
           }
         }
         
-        // Reject the promise if it hasn't been resolved yet
-        reject(new Error("WebSocket connection failed"));
+        // Don't reject the promise if it's already been resolved
+        if (this.ws?.readyState !== WebSocket.OPEN) {
+          reject(new Error("WebSocket connection failed"));
+        }
       };
       
       this.ws.onclose = this.handleClose.bind(this);
       this.ws.onmessage = (event) => {
         try {
           const parsedData = JSON.parse(event.data);
+          console.log("Received WebSocket message:", parsedData.type);
           this.onMessage(parsedData);
         } catch (error) {
           console.error("Error parsing message:", error);
@@ -84,6 +87,12 @@ export class WebSocketConnection {
 
   private handleClose(event: CloseEvent) {
     console.log("WebSocket closed with code:", event.code, "reason:", event.reason || "No reason provided");
+    
+    // Clear session timeout if it exists
+    if (this.sessionResponseTimeout) {
+      clearTimeout(this.sessionResponseTimeout);
+      this.sessionResponseTimeout = null;
+    }
     
     if (this.reconnectAttempts < this.maxReconnectAttempts && navigator.onLine) {
       this.reconnectAttempts++;
@@ -96,9 +105,9 @@ export class WebSocketConnection {
         if (navigator.onLine === false) {
           this.lastLearnieCallback.onError("You appear to be offline. Please check your internet connection.");
         } else if (event.code === 1006) {
-          this.lastLearnieCallback.onError("Connection closed unexpectedly. Please try again.");
+          this.lastLearnieCallback.onError("Connection closed unexpectedly. Please check if the server is running and try again.");
         } else {
-          this.lastLearnieCallback.onError("Connection lost. Tap to reconnect.");
+          this.lastLearnieCallback.onError(`Connection lost (code: ${event.code}). Tap to reconnect.`);
         }
       }
       this.onClose();
@@ -116,6 +125,7 @@ export class WebSocketConnection {
       JSON.parse(jsonStr); // Validate JSON
       this.lastSentEvent = event;
       this.ws.send(jsonStr);
+      console.log("Sent WebSocket event:", event.type);
       return true;
     } catch (error) {
       console.error("Failed to send JSON event:", error);

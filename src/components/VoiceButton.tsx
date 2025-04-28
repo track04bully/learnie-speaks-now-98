@@ -1,8 +1,9 @@
+
 import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
 import { useToast } from '@/hooks/use-toast';
-import { Mic, MicOff, Speaker } from 'lucide-react';
+import { Mic, MicOff, Speaker, WifiOff } from 'lucide-react';
 
 interface VoiceButtonProps {
   isRecording: boolean;
@@ -20,21 +21,24 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   const { toast } = useToast();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
 
   const handleError = useCallback((message: string) => {
     setErrorMessage(message);
     onRecordingChange(false);
     setIsConnecting(false);
+    setConnectionError(true);
     toast({
       title: "Oops! Something went wrong",
-      description: "Let's try again!",
+      description: message || "Let's try again!",
       variant: "destructive",
     });
   }, [toast, onRecordingChange]);
 
   const handleClick = useCallback(async () => {
-    // Reset error message on new interaction
+    // Reset error states on new interaction
     setErrorMessage(null);
+    setConnectionError(false);
 
     try {
       const wsManager = WebSocketManager.getInstance();
@@ -46,7 +50,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         await wsManager.startRecording(onSpeakingChange, (error) => {
           toast({
             title: "Oops!",
-            description: "Let's try that again!",
+            description: error || "Let's try that again!",
             variant: "destructive",
           });
         });
@@ -74,7 +78,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           setIsConnecting(false);
         } catch (error) {
           setIsConnecting(false);
-          handleError("Connection failed. Please try again.");
+          handleError(error.message || "Connection failed. Please try again.");
           return;
         }
       }
@@ -82,7 +86,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       await wsManager.startRecording(onSpeakingChange, (error) => {
         toast({
           title: "Oops!",
-          description: "Let's try that again!",
+          description: error || "Let's try that again!",
           variant: "destructive",
         });
       });
@@ -90,11 +94,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       
     } catch (error) {
       console.error("Error:", error);
-      toast({
-        title: "Oops!",
-        description: "Let's try that again!",
-        variant: "destructive",
-      });
+      handleError(error.message || "Something went wrong. Please try again.");
     }
   }, [isRecording, isSpeaking, toast, onRecordingChange, onSpeakingChange, handleError]);
 
@@ -110,8 +110,9 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         "hover:scale-105 hover:shadow-[0_0_30px_rgba(107,102,255,0.3)] transition-all duration-300",
         "rounded-[45%_55%_52%_48%_/_48%_45%_55%_52%]",
         isConnecting ? "bg-gray-400 cursor-wait" :
+        connectionError ? "bg-red-400 cursor-pointer" :
         isRecording ? "bg-kinder-red animate-pulse" : 
-        isSpeaking ? "bg-kinder-purple opacity-90 cursor-pointer" : // Make it clear it's clickable when speaking
+        isSpeaking ? "bg-kinder-purple opacity-90 cursor-pointer" :
         "bg-kinder-purple hover:bg-kinder-red",
         "cursor-pointer"
       )}
@@ -123,6 +124,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           className={cn(
             "w-32 h-32 md:w-40 md:h-40 object-contain",
             isConnecting ? "" :
+            connectionError ? "opacity-70" :
             isSpeaking ? "animate-bounce-soft" : 
             isRecording ? "animate-pulse" : 
             "transition-transform hover:scale-105"
@@ -130,10 +132,13 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         />
         <div className={cn(
           "absolute top-4 right-4 p-2 rounded-full",
+          connectionError ? "bg-red-500" :
           isRecording || isSpeaking ? "bg-white/20" : "bg-white/10"
         )}>
           {isConnecting ? (
             <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          ) : connectionError ? (
+            <WifiOff className="w-6 h-6 text-white animate-pulse" />
           ) : isSpeaking ? (
             <Speaker className="w-6 h-6 text-white animate-pulse" />
           ) : isRecording ? (
@@ -156,7 +161,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         </div>
       )}
       
-      {/* Status labels for children */}
+      {/* Status labels */}
       <div className="absolute -bottom-12 left-0 right-0 text-center text-lg font-fredoka animate-fade-in">
         {isRecording ? (
           <span className="text-kinder-red">I'm listening!</span>
@@ -164,6 +169,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           <span className="text-kinder-purple">Tap to interrupt</span>
         ) : isConnecting ? (
           <span>Getting ready...</span>
+        ) : connectionError ? (
+          <span className="text-red-500">Tap to try again</span>
         ) : (
           <span>Tap to talk!</span>
         )}

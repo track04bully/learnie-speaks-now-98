@@ -11,7 +11,12 @@ serve(async (req) => {
   const { headers } = req
   const upgradeHeader = headers.get("upgrade") || ""
 
+  // Add detailed logging of the incoming request
+  console.log("Request received with headers:", Array.from(headers.entries()))
+  console.log("Upgrade header:", upgradeHeader)
+
   if (upgradeHeader.toLowerCase() !== "websocket") {
+    console.log("Invalid request - not a WebSocket upgrade")
     return new Response("Expected WebSocket connection", { 
       status: 400,
       headers: corsHeaders
@@ -21,6 +26,7 @@ serve(async (req) => {
   try {
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
     if (!OPENAI_API_KEY) {
+      console.error("OPENAI_API_KEY environment variable not set")
       throw new Error('OPENAI_API_KEY is not set')
     }
 
@@ -29,62 +35,96 @@ serve(async (req) => {
     const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01"
     console.log("Connecting to OpenAI:", openAIUrl)
     
-    const openAISocket = new WebSocket(openAIUrl, [
-      "realtime",
-      `openai-insecure-api-key.${OPENAI_API_KEY}`,
-      "openai-beta.realtime-v1"
-    ])
-    
-    // Track connection state and success
-    let sessionConfigSent = false
-    let sessionConfigConfirmed = false
-    let lastSentEvent = null
-    let connectionTimeout = null
-    
-    openAISocket.onopen = () => {
-      console.log("Connected to OpenAI")
+    try {
+      // Connect to OpenAI WebSocket API
+      const openAISocket = new WebSocket(openAIUrl, [
+        "realtime",
+        `openai-insecure-api-key.${OPENAI_API_KEY}`,
+        "openai-beta.realtime-v1"
+      ])
       
-      // Set a timeout to catch if we never get a response to our session config
-      connectionTimeout = setTimeout(() => {
-        if (sessionConfigSent && !sessionConfigConfirmed) {
-          console.error("Session configuration timed out - no response received")
-          socket.close(1011, "Connection setup failed - no response from OpenAI")
+      // Track connection state and success
+      let sessionConfigSent = false
+      let sessionConfigConfirmed = false
+      let lastSentEvent = null
+      let connectionTimeout = null
+      
+      openAISocket.onopen = () => {
+        console.log("Connected to OpenAI WebSocket API")
+        
+        // Set a timeout to catch if we never get a response to our session config
+        connectionTimeout = setTimeout(() => {
+          if (sessionConfigSent && !sessionConfigConfirmed) {
+            console.error("Session configuration timed out - no response received")
+            socket.close(1011, "Connection setup failed - no response from OpenAI")
+          }
+        }, 10000)
+        
+        const sessionConfig = {
+          type: "session.update",
+          event_id: `evt_${Date.now()}`,
+          session: {
+            modalities: ["text", "audio"],
+            instructions: "You are Learnie, a friendly and patient tutor for children. Always speak in simple, clear language that a child can understand. Be encouraging and supportive. If a concept is complex, break it down into smaller, easy-to-understand pieces. Use examples from everyday life that children can relate to. Never use complex vocabulary - if you need to introduce a new word, explain what it means in simple terms. Always maintain a positive, encouraging tone.",
+            voice: "echo",
+            input_audio_format: "pcm16",
+            output_audio_format: "pcm16",
+            input_audio_transcription: {
+              model: "whisper-1"
+            },
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 1000
+            },
+            temperature: 0.8,
+            max_response_output_tokens: "inf"
+          }
         }
-      }, 10000)
-      
-      const sessionConfig = {
-        type: "session.update",
-        event_id: `evt_${Date.now()}`,
-        session: {
-          modalities: ["text", "audio"],
-          instructions: "You are Learnie, a friendly and patient tutor for children. Always speak in simple, clear language that a child can understand. Be encouraging and supportive. If a concept is complex, break it down into smaller, easy-to-understand pieces. Use examples from everyday life that children can relate to. Never use complex vocabulary - if you need to introduce a new word, explain what it means in simple terms. Always maintain a positive, encouraging tone.",
-          voice: "echo",
-          input_audio_format: "pcm16",
-          output_audio_format: "pcm16",
-          input_audio_transcription: {
-            model: "whisper-1"
-          },
-          turn_detection: {
-            type: "server_vad",
-            threshold: 0.5,
-            prefix_padding_ms: 300,
-            silence_duration_ms: 1000
-          },
-          temperature: 0.8,
-          max_response_output_tokens: "inf"
+        
+        try {
+          openAISocket.send(JSON.stringify(sessionConfig))
+          sessionConfigSent = true
+          lastSentEvent = sessionConfig
+          console.log("Session configuration sent:", sessionConfig)
+        } catch (error) {
+          console.error("Error sending session configuration:", error)
+          socket.close(1011, "Failed to send session configuration")
         }
       }
       
-      try {
-        openAISocket.send(JSON.stringify(sessionConfig))
-        sessionConfigSent = true
-        lastSentEvent = sessionConfig
-        console.log("Session configuration sent:", sessionConfig)
-      } catch (error) {
-        console.error("Error sending session configuration:", error)
-        socket.close(1011, "Failed to send session configuration")
+      openAISocket.onerror = (error) => {
+        console.error("OpenAI WebSocket error:", error)
+        // Log full error details
+        try {
+          console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)))
+        } catch (e) {
+          console.error("Unable to stringify error:", e)
+        }
+        
+        // If we sent an event but got an error immediately, it might be due to invalid JSON
+        if (lastSentEvent) {
+          console.error("Last sent event that might have caused the error:", lastSentEvent)
+        }
+        
+        socket.close(1011, "Error connecting to OpenAI")
       }
-      
+
+      socket.onerror = (error) => {
+        console.error("Client WebSocket error:", error)
+        // Log full error details
+        try {
+          console.error("Client error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)))
+        } catch (e) {
+          console.error("Unable to stringify client error:", e)
+        }
+        
+        if (openAISocket.readyState === WebSocket.OPEN) {
+          openAISocket.close(1011, "Client connection error")
+        }
+      }
+
       socket.onmessage = async ({ data }) => {
         try {
           console.log("Received from client:", typeof data === 'string' ? data.substring(0, 100) + "..." : "Binary data")
@@ -159,58 +199,31 @@ serve(async (req) => {
           console.error("Error processing message from OpenAI:", error)
         }
       }
-    }
 
-    openAISocket.onerror = (error) => {
-      console.error("OpenAI WebSocket error:", error)
-      // Log full error details
-      try {
-        console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)))
-      } catch (e) {
-        console.error("Unable to stringify error:", e)
+      socket.onclose = (event) => {
+        clearTimeout(connectionTimeout)
+        console.log("Client disconnected with code:", event.code, "reason:", event.reason || "No reason provided")
+        if (openAISocket.readyState === WebSocket.OPEN) {
+          openAISocket.close()
+        }
+      }
+
+      openAISocket.onclose = (event) => {
+        clearTimeout(connectionTimeout)
+        console.log("OpenAI disconnected with code:", event.code, "reason:", event.reason || "No reason provided")
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.close(1011, `OpenAI disconnected: ${event.reason || 'Unknown reason'}`)
+        }
       }
       
-      // If we sent an event but got an error immediately, it might be due to invalid JSON
-      if (lastSentEvent) {
-        console.error("Last sent event that might have caused the error:", lastSentEvent)
-      }
-      
-      socket.close(1011, "Error connecting to OpenAI")
-    }
-
-    socket.onerror = (error) => {
-      console.error("Client WebSocket error:", error)
-      // Log full error details
-      try {
-        console.error("Client error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)))
-      } catch (e) {
-        console.error("Unable to stringify client error:", e)
-      }
-      
-      if (openAISocket.readyState === WebSocket.OPEN) {
-        openAISocket.close(1011, "Client connection error")
-      }
-    }
-
-    socket.onclose = (event) => {
-      clearTimeout(connectionTimeout)
-      console.log("Client disconnected with code:", event.code, "reason:", event.reason || "No reason provided")
-      if (openAISocket.readyState === WebSocket.OPEN) {
-        openAISocket.close()
-      }
-    }
-
-    openAISocket.onclose = (event) => {
-      clearTimeout(connectionTimeout)
-      console.log("OpenAI disconnected with code:", event.code, "reason:", event.reason || "No reason provided")
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.close(1011, `OpenAI disconnected: ${event.reason || 'Unknown reason'}`)
-      }
+    } catch (openAIError) {
+      console.error("Error setting up OpenAI connection:", openAIError)
+      socket.close(1011, `OpenAI connection error: ${openAIError.message}`)
     }
 
     return response
   } catch (error) {
-    console.error("Error:", error)
+    console.error("Error in WebSocket handling:", error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
