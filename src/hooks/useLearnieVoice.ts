@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Message, RealtimeChat } from '@/utils/RealtimeAudio';
 
 // Define all possible phases
-type Phase = 'idle' | 'connecting' | 'listen' | 'speak';
+type Phase = 'idle' | 'connecting' | 'listen' | 'speak' | 'error';
 
 export const useLearnieVoice = () => {
   const { toast } = useToast();
@@ -13,12 +13,14 @@ export const useLearnieVoice = () => {
   const [transcript, setTranscript] = useState<string>('');
   const [messageHistory, setMessageHistory] = useState<Message[]>([]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const realtimeChatRef = useRef<RealtimeChat | null>(null);
 
   const startConversation = async () => {
     try {
       if (phase !== 'idle') return;
       setPhase('connecting');
+      setError(null);
       
       if (!realtimeChatRef.current) {
         const chat = new RealtimeChat(
@@ -26,6 +28,7 @@ export const useLearnieVoice = () => {
           (connected) => {
             if (!connected) {
               setPhase('idle');
+              console.log("Connection to Learnie ended");
             }
           },
           // Transcript update handler
@@ -35,10 +38,14 @@ export const useLearnieVoice = () => {
           // Speaking change handler
           (speaking) => {
             setPhase(speaking ? 'speak' : 'listen');
+            console.log("Speaking state changed:", speaking);
           },
           // Processing state handler
           (processing) => {
             setIsProcessing(processing);
+            if (processing) {
+              console.log("Processing user input...");
+            }
           },
           // Message history update handler
           (messages) => {
@@ -61,7 +68,8 @@ export const useLearnieVoice = () => {
       });
     } catch (error) {
       console.error('Error starting conversation:', error);
-      setPhase('idle');
+      setPhase('error');
+      setError(error instanceof Error ? error.message : 'Connection failed');
       toast({
         title: "Connection Error",
         description: error instanceof Error ? error.message : 'Failed to start conversation',
@@ -74,6 +82,10 @@ export const useLearnieVoice = () => {
     if (realtimeChatRef.current) {
       realtimeChatRef.current.disconnect();
       setPhase('idle');
+      toast({
+        title: "Disconnected",
+        description: "Chat with Learnie ended.",
+      });
     }
   };
   
@@ -82,7 +94,16 @@ export const useLearnieVoice = () => {
       realtimeChatRef.current.clearHistory();
       setMessageHistory([]);
       setTranscript('');
+      toast({
+        title: "History cleared",
+        description: "Conversation history has been cleared.",
+      });
     }
+  };
+
+  const retryConnection = async () => {
+    stopConversation();
+    setTimeout(startConversation, 500);
   };
 
   // Cleanup on unmount
@@ -99,9 +120,11 @@ export const useLearnieVoice = () => {
     transcript,
     messageHistory,
     isProcessing,
+    error,
     startConversation,
     stopConversation,
     clearHistory,
-    isConnected: phase !== 'idle',
+    retryConnection,
+    isConnected: phase !== 'idle' && phase !== 'error',
   };
 };

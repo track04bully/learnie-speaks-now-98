@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export class AudioRecorder {
@@ -112,6 +111,9 @@ export class RealtimeChat {
   private isConnected = false;
   private sessionId: string | null = null;
   private messageHistory: Message[] = [];
+  private maxReconnectAttempts = 3;
+  private reconnectAttempts = 0;
+  private heartbeatInterval: number | null = null;
   
   constructor(
     private onConnectionChange: (connected: boolean) => void,
@@ -128,6 +130,7 @@ export class RealtimeChat {
 
   async connect() {
     try {
+      console.log("Initializing connection to Learnie...");
       this.audioContext = new AudioContext({
         sampleRate: 16000,
       });
@@ -142,10 +145,23 @@ export class RealtimeChat {
         console.log("WebSocket connection opened");
         this.isConnected = true;
         this.onConnectionChange(true);
+        this.reconnectAttempts = 0;
+        
+        // Set up a heartbeat to keep the connection alive
+        if (this.heartbeatInterval) {
+          clearInterval(this.heartbeatInterval);
+        }
+        
+        this.heartbeatInterval = setInterval(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({type: "ping"}));
+          }
+        }, 30000) as unknown as number;
         
         if (this.recorder) {
           await this.recorder.start(this.ws!);
           this.isMicrophoneActive = true;
+          console.log("Microphone activated");
         }
       };
       
@@ -185,7 +201,8 @@ export class RealtimeChat {
               break;
               
             case "heartbeat":
-              console.log("Received heartbeat from server");
+            case "pong":
+              console.log("Received heartbeat/pong from server");
               // Keep connection alive, no action needed
               break;
               
@@ -195,6 +212,7 @@ export class RealtimeChat {
               break;
             
             case "input_audio_transcript.update":
+              console.log("Received transcript update:", data.transcript);
               if (data.transcript) {
                 // Store user message in history
                 this.addOrUpdateMessage('user', data.transcript);
@@ -207,6 +225,17 @@ export class RealtimeChat {
                 this.sessionId = data.session_id;
                 console.log("Received session ID:", this.sessionId);
               }
+              break;
+              
+            case "moderation.violation":
+              console.warn("Content moderation violation:", data.message);
+              // Handle moderation violation
+              this.addOrUpdateMessage('assistant', "I'm sorry, I can't respond to that request.");
+              break;
+
+            case "error":
+              console.error("Error from server:", data.message);
+              this.onConnectionChange(false);
               break;
 
             default:
@@ -221,16 +250,35 @@ export class RealtimeChat {
         console.error("WebSocket error:", error);
         this.onConnectionChange(false);
         this.isConnected = false;
+        
+        // Attempt reconnection
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          console.log(`Attempting to reconnect (${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})...`);
+          this.reconnectAttempts++;
+          setTimeout(() => this.connect(), 2000);
+        }
       };
       
-      this.ws.onclose = () => {
-        console.log("WebSocket connection closed");
+      this.ws.onclose = (event) => {
+        console.log("WebSocket connection closed. Code:", event.code, "Reason:", event.reason);
+        if (this.heartbeatInterval) {
+          clearInterval(this.heartbeatInterval);
+          this.heartbeatInterval = null;
+        }
+        
         if (this.recorder) {
           this.recorder.stop();
         }
         this.onConnectionChange(false);
         this.isConnected = false;
         this.isMicrophoneActive = false;
+        
+        // Attempt reconnection for unexpected closures
+        if (event.code !== 1000 && event.code !== 1001 && this.reconnectAttempts < this.maxReconnectAttempts) {
+          console.log(`Connection closed unexpectedly. Attempting to reconnect (${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})...`);
+          this.reconnectAttempts++;
+          setTimeout(() => this.connect(), 2000);
+        }
       };
       
     } catch (error) {
@@ -243,6 +291,11 @@ export class RealtimeChat {
   disconnect() {
     // Save conversation history before disconnecting
     this.saveConversationHistory();
+    
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
     
     if (this.ws) {
       this.ws.close();
@@ -260,6 +313,7 @@ export class RealtimeChat {
     this.onConnectionChange(false);
     this.audioQueue = [];
     this.isPlaying = false;
+    console.log("Connection to Learnie closed");
   }
 
   isActive(): boolean {

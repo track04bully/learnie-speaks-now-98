@@ -1,20 +1,42 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Trash2 } from 'lucide-react';
+import { Trash2, RefreshCw, Volume2, Mic } from 'lucide-react';
 import AudioWaves from './AudioWaves';
 import { useLearnieVoice } from '@/hooks/useLearnieVoice';
 import { Message } from '@/utils/RealtimeAudio';
+import { useToast } from '@/hooks/use-toast';
 
 const LearnieAssistant: React.FC = () => {
-  const { phase, messageHistory, startConversation, stopConversation, clearHistory } = useLearnieVoice();
+  const { toast } = useToast();
+  const { 
+    phase, 
+    messageHistory, 
+    isProcessing,
+    error,
+    startConversation, 
+    stopConversation, 
+    clearHistory,
+    retryConnection
+  } = useLearnieVoice();
   const [showHistory, setShowHistory] = useState(false);
+  
+  // Auto-retry connection if there's an error
+  useEffect(() => {
+    if (error) {
+      toast({
+        title: "Connection issue",
+        description: "There was a problem with the connection. Try again or refresh the page.",
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
 
   return (
     <div className="flex flex-col items-center justify-center gap-4">      
       <div className="relative p-8">
         <Button
-          onClick={phase === 'idle' ? startConversation : stopConversation}
+          onClick={phase === 'idle' || phase === 'error' ? startConversation : stopConversation}
           disabled={phase === 'connecting'}
           className={`w-40 h-40 md:w-56 md:h-56 text-white text-2xl md:text-4xl
                     font-baloo font-bold transition-all duration-300 shadow-lg
@@ -25,8 +47,11 @@ const LearnieAssistant: React.FC = () => {
                       ? "bg-kinder-purple animate-bounce-soft" 
                       : phase === 'speak'
                         ? "bg-kinder-pink animate-pulse"
-                        : "bg-kinder-purple hover:bg-kinder-purple/90"}
+                        : phase === 'error'
+                          ? "bg-kinder-red"
+                          : "bg-kinder-purple hover:bg-kinder-purple/90"}
                     ${phase === 'connecting' && "opacity-70 cursor-not-allowed"}`}
+          aria-label={phase === 'idle' ? "Start conversation" : "Stop conversation"}
         >
           <div className={`flex items-center justify-center w-full h-full ${phase !== 'idle' && "scale-110 transition-transform"}`}>
             <img 
@@ -36,19 +61,60 @@ const LearnieAssistant: React.FC = () => {
             />
           </div>
           
-          <div className="absolute bottom-4 text-sm font-normal">
-            {phase === 'connecting' ? 'Connecting...' :
-             phase === 'listen' ? 'Listening...' :
-             phase === 'speak' ? 'Speaking...' :
-             'Click to talk!'}
+          <div className="absolute bottom-4 text-sm font-normal flex items-center gap-2">
+            {phase === 'connecting' ? (
+              <>
+                <span className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent"></span>
+                Connecting...
+              </>
+            ) : 
+             phase === 'listen' ? (
+              <>
+                <Mic size={16} className="animate-pulse" />
+                Listening...
+              </>
+            ) : 
+             phase === 'speak' ? (
+              <>
+                <Volume2 size={16} className="animate-pulse" />
+                Speaking...
+              </>
+            ) : 
+             phase === 'error' ? (
+              <>
+                Error
+              </>
+            ) : 
+            'Click to talk!'}
           </div>
         </Button>
       </div>
       
       <AudioWaves isActive={phase === 'listen'} />
       
+      {/* Processing indicator */}
+      {isProcessing && (
+        <div className="text-sm text-gray-600 animate-pulse flex items-center gap-2">
+          <span className="h-2 w-2 bg-kinder-purple rounded-full"></span>
+          Processing...
+        </div>
+      )}
+      
+      {/* Error retry button */}
+      {phase === 'error' && (
+        <Button 
+          onClick={retryConnection}
+          variant="outline" 
+          size="sm"
+          className="flex items-center gap-2"
+        >
+          <RefreshCw size={16} className="animate-spin" />
+          Retry connection
+        </Button>
+      )}
+      
       {/* Conversation controls */}
-      {phase !== 'idle' && (
+      {phase !== 'idle' && phase !== 'error' && (
         <div className="flex items-center gap-4">
           <Button 
             onClick={() => setShowHistory(!showHistory)}
@@ -97,6 +163,19 @@ const LearnieAssistant: React.FC = () => {
               </div>
             ))}
           </div>
+        </div>
+      )}
+      
+      {/* Usage instructions */}
+      {phase === 'idle' && !error && (
+        <div className="text-center text-gray-600 max-w-md">
+          <h3 className="font-medium mb-2">How to talk with Learnie:</h3>
+          <ol className="text-sm text-left list-decimal list-inside space-y-2">
+            <li>Click on Learnie's image to start</li>
+            <li>When Learnie is listening (purple glow), speak clearly</li>
+            <li>Wait for Learnie to respond (pink glow)</li>
+            <li>Continue the conversation naturally</li>
+          </ol>
         </div>
       )}
     </div>

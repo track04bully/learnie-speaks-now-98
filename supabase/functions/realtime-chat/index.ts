@@ -92,8 +92,7 @@ serve(async (req) => {
           input_audio_transcription: {
             model: "whisper-1",
             language: "en",
-            prompt: "Focus on accurate transcription of speech",
-            sampling_rate: 16000
+            prompt: "Focus on accurate transcription of speech"
           },
           turn_detection: {
             type: "server_vad",
@@ -158,8 +157,7 @@ serve(async (req) => {
           input_audio_transcription: {
             model: "whisper-1",
             language: "en",
-            prompt: "Focus on accurate transcription of speech",
-            sampling_rate: 16000
+            prompt: "Focus on accurate transcription of speech"
           },
           turn_detection: {
             type: "server_vad",
