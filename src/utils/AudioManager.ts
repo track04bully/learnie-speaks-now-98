@@ -1,3 +1,6 @@
+
+import { SAMPLE_RATE } from './audioConstants';
+
 export class AudioManager {
   private audioContext: AudioContext;
   private audioQueue: AudioBuffer[] = [];
@@ -9,8 +12,10 @@ export class AudioManager {
 
   constructor(onSpeakingChange?: (isSpeaking: boolean) => void) {
     this.audioContext = new AudioContext({
-      sampleRate: 24000,
+      sampleRate: SAMPLE_RATE,
     });
+    console.log(`AudioManager sample rate: ${this.audioContext.sampleRate}Hz (target: ${SAMPLE_RATE}Hz)`);
+    
     this.gainNode = this.audioContext.createGain();
     this.gainNode.connect(this.audioContext.destination);
     this.onSpeakingChange = onSpeakingChange;
@@ -54,7 +59,7 @@ export class AudioManager {
     
     // Step 3: Create an AudioBuffer with the correct specifications
     const frameCount = pcm16.length;
-    const audioBuffer = this.audioContext.createBuffer(1, frameCount, 24000);
+    const audioBuffer = this.audioContext.createBuffer(1, frameCount, SAMPLE_RATE);
     
     // Step 4: Convert Int16 samples to Float32 [-1,1] range and copy to channel
     const float32Samples = new Float32Array(frameCount);
@@ -114,7 +119,8 @@ export class AudioManager {
     
     // Create a new audio context to ensure clean state
     this.audioContext.close().catch(e => console.error('Error closing AudioContext:', e));
-    this.audioContext = new AudioContext({ sampleRate: 24000 });
+    this.audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
+    console.log(`AudioManager reset with sample rate: ${this.audioContext.sampleRate}Hz`);
     this.gainNode = this.audioContext.createGain();
     this.gainNode.connect(this.audioContext.destination);
   }

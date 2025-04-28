@@ -1,4 +1,6 @@
 
+import { SAMPLE_RATE } from './audioConstants';
+
 export class AudioRecorder {
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
@@ -15,9 +17,10 @@ export class AudioRecorder {
 
   async start() {
     try {
+      // First, try to get audio with the specific sample rate
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 24000,
+          sampleRate: SAMPLE_RATE,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
@@ -25,10 +28,14 @@ export class AudioRecorder {
         }
       });
       
+      // Create audio context with desired sample rate
       this.audioContext = new AudioContext({
-        sampleRate: 24000,
+        sampleRate: SAMPLE_RATE,
       });
       
+      console.log(`AudioContext sample rate: ${this.audioContext.sampleRate}Hz (target: ${SAMPLE_RATE}Hz)`);
+      
+      // Load audio worklet processor
       await this.audioContext.audioWorklet.addModule('/audioWorkletProcessor.js');
       
       this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');

@@ -8,6 +8,11 @@ class PCMAudioProcessor extends AudioWorkletProcessor {
     super();
     this.lastAudioTime = currentTime;
     this.silenceStartTime = null;
+    
+    // Verify that we're using the correct sample rate
+    if (sampleRate !== SAMPLE_RATE) {
+      console.warn(`AudioWorklet running at ${sampleRate}Hz instead of expected ${SAMPLE_RATE}Hz. This may cause audio issues.`);
+    }
   }
 
   detectSilence(input) {
