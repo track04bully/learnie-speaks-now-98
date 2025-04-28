@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -17,7 +18,21 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const { toast } = useToast();
+
+  const resetSilenceDetection = () => {
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+    }
+    silenceTimeoutRef.current = setTimeout(() => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        console.log('Silence detected, stopping recording');
+        mediaRecorderRef.current.stop();
+      }
+    }, 2000); // 2 seconds of silence
+  };
 
   useEffect(() => {
     let countdownInterval: number;
@@ -31,14 +46,44 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
 
     return () => {
       if (countdownInterval) clearInterval(countdownInterval);
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     };
   }, [isRecording, maxRecordingTime]);
+
+  const setupVoiceActivityDetection = (stream: MediaStream) => {
+    const audioContext = new AudioContext();
+    audioContextRef.current = audioContext;
+    const analyzer = audioContext.createAnalyser();
+    const microphone = audioContext.createMediaStreamSource(stream);
+    microphone.connect(analyzer);
+    
+    analyzer.fftSize = 256;
+    const bufferLength = analyzer.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    const checkAudioLevel = () => {
+      if (!isRecording) return;
+      
+      analyzer.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+      
+      if (average > 10) { // Adjust this threshold as needed
+        resetSilenceDetection();
+      }
+      
+      requestAnimationFrame(checkAudioLevel);
+    };
+    
+    checkAudioLevel();
+  };
 
   const startRecording = async () => {
     try {
       setIsReady(false);
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+      
+      setupVoiceActivityDetection(stream);
       
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
@@ -62,13 +107,22 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           streamRef.current.getTracks().forEach(track => track.stop());
           streamRef.current = null;
         }
+        if (audioContextRef.current) {
+          audioContextRef.current.close();
+          audioContextRef.current = null;
+        }
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = null;
+        }
         
         setIsRecording(false);
         setIsReady(true);
       };
       
-      mediaRecorder.start();
+      mediaRecorder.start(100); // Collect data every 100ms
       setIsRecording(true);
+      resetSilenceDetection();
       
       // Automatically stop recording after maxRecordingTime
       setTimeout(() => {

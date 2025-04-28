@@ -6,21 +6,37 @@ import { useToast } from '@/hooks/use-toast';
 
 const LearnieAssistant: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const { toast } = useToast();
 
-  const handleRecordingComplete = (blob: Blob) => {
+  const handleRecordingComplete = async (blob: Blob) => {
     setAudioBlob(blob);
     setIsRecording(false);
+    setIsProcessing(true);
     
-    // In a real app, you'd send this blob to your backend
-    console.log("Recording complete, blob size:", blob.size);
-    
-    toast({
-      title: "Recording Complete!",
-      description: "Learnie heard you!",
-      duration: 3000,
-    });
+    try {
+      // In a real app, you'd send this blob to your backend
+      console.log("Recording complete, blob size:", blob.size);
+      
+      // Simulate server processing time
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      toast({
+        title: "Recording Complete!",
+        description: "Learnie heard you!",
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error processing audio:', error);
+      toast({
+        title: "Error",
+        description: "Could not process your voice message",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleRecordingStart = () => {
@@ -43,9 +59,11 @@ const LearnieAssistant: React.FC = () => {
       <AudioWaves isActive={isRecording} />
       
       <p className="text-lg md:text-xl font-fredoka text-center max-w-md text-kinder-black">
-        {isRecording 
-          ? "Learnie is listening! What would you like to know?" 
-          : "Tap the button and ask Learnie anything!"}
+        {isProcessing 
+          ? "Learnie is thinking..." 
+          : isRecording 
+            ? "Learnie is listening! What would you like to know?" 
+            : "Tap the button and ask Learnie anything!"}
       </p>
     </div>
   );
