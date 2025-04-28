@@ -1,3 +1,4 @@
 
 [functions.realtime-chat]
 verify_jwt = false
+run_policy = "per_worker"
