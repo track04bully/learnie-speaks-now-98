@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
@@ -40,6 +39,29 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
     try {
       const wsManager = WebSocketManager.getInstance();
       
+      // If speaking, stop and start recording immediately
+      if (isSpeaking) {
+        wsManager.interruptSpeaking();
+        onSpeakingChange(false);
+        await wsManager.startRecording(onSpeakingChange, (error) => {
+          toast({
+            title: "Oops!",
+            description: "Let's try that again!",
+            variant: "destructive",
+          });
+        });
+        onRecordingChange(true);
+        return;
+      }
+
+      // If recording, stop recording
+      if (isRecording) {
+        wsManager.manualStop();
+        onRecordingChange(false);
+        return;
+      }
+
+      // Start new recording
       if (!wsManager.isConnected()) {
         setIsConnecting(true);
         toast({
@@ -57,40 +79,22 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         }
       }
 
-      // If the assistant is speaking, interrupt it
-      if (isSpeaking) {
-        wsManager.interruptSpeaking();
-        // Move straight to recording mode
-        onSpeakingChange(false);
-        await wsManager.startRecording(onSpeakingChange, handleError);
-        onRecordingChange(true);
+      await wsManager.startRecording(onSpeakingChange, (error) => {
         toast({
-          title: "Your turn!",
-          description: "Learnie is listening to you now",
+          title: "Oops!",
+          description: "Let's try that again!",
+          variant: "destructive",
         });
-        return;
-      }
-
-      // Handle recording state toggle
-      if (!isRecording) {
-        await wsManager.startRecording(onSpeakingChange, handleError);
-        onRecordingChange(true);
-        toast({
-          title: "I'm listening!",
-          description: "Tell me something!",
-        });
-      } else {
-        // Manual stop - this will trigger response generation with captured audio
-        wsManager.manualStop();
-        onRecordingChange(false);
-        toast({
-          title: "Got it!",
-          description: "Learnie is thinking...",
-        });
-      }
+      });
+      onRecordingChange(true);
+      
     } catch (error) {
       console.error("Error:", error);
-      handleError(error instanceof Error ? error.message : 'Could not access microphone. Please make sure it\'s connected and allowed.');
+      toast({
+        title: "Oops!",
+        description: "Let's try that again!",
+        variant: "destructive",
+      });
     }
   }, [isRecording, isSpeaking, toast, onRecordingChange, onSpeakingChange, handleError]);
 

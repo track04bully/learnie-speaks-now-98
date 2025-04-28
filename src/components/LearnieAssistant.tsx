@@ -18,17 +18,8 @@ const LearnieAssistant: React.FC = () => {
   useEffect(() => {
     const checkMicPermission = async () => {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const hasMic = devices.some(device => device.kind === 'audioinput');
-        
-        if (hasMic) {
-          // Try to get mic access
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          // If successful, immediately stop all tracks
-          stream.getTracks().forEach(track => track.stop());
-        } else {
-          setShowPermissionDialog(true);
-        }
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
       } catch (error) {
         console.log("Microphone not yet granted:", error);
         setShowPermissionDialog(true);
@@ -37,9 +28,8 @@ const LearnieAssistant: React.FC = () => {
     
     checkMicPermission();
     
-    // Cleanup function for component unmount
+    // Cleanup websocket on unmount
     return () => {
-      console.log('Cleaning up Learnie Assistant resources...');
       const wsManager = WebSocketManager.getInstance();
       if (wsManager.isConnected()) {
         wsManager.disconnect();
@@ -51,25 +41,26 @@ const LearnieAssistant: React.FC = () => {
 
   const handlePermissionRequest = async () => {
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop());
       setShowPermissionDialog(false);
       toast({
-        title: "Yay!",
+        title: "Perfect!",
         description: "Now you can talk with Learnie!",
       });
     } catch (error) {
       toast({
-        title: "Microphone access needed",
-        description: "Please allow microphone access to talk with Learnie.",
+        title: "I need to hear you",
+        description: "Please allow your microphone so we can talk!",
         variant: "destructive",
       });
     }
   };
 
   const getStatusText = () => {
-    if (isRecording) return "I'm listening...";
-    if (isSpeaking) return "I'm answering...";
-    return "Tap the button and ask Learnie anything!";
+    if (isRecording) return "I'm listening to you!";
+    if (isSpeaking) return "I'm talking!";
+    return "Tap the button and let's talk!";
   };
 
   return (
@@ -91,7 +82,6 @@ const LearnieAssistant: React.FC = () => {
         {getStatusText()}
       </p>
 
-      {/* Kid-friendly microphone permission dialog */}
       <Dialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog}>
         <DialogContent className="bg-[#F8F7FF] border-kinder-purple border-2 rounded-3xl p-6">
           <DialogTitle className="text-2xl font-fredoka text-center text-kinder-purple">
