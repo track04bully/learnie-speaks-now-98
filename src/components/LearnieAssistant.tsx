@@ -3,6 +3,12 @@ import React, { useState } from 'react';
 import VoiceButton from './VoiceButton';
 import AudioWaves from './AudioWaves';
 import { useToast } from '@/hooks/use-toast';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_ANON_KEY!
+);
 
 const LearnieAssistant: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -16,17 +22,23 @@ const LearnieAssistant: React.FC = () => {
     setIsProcessing(true);
     
     try {
-      // In a real app, you'd send this blob to your backend
-      console.log("Recording complete, blob size:", blob.size);
+      // Convert blob to base64
+      const buffer = await blob.arrayBuffer();
+      const base64Audio = Buffer.from(buffer).toString('base64');
       
-      // Simulate server processing time
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // Call Supabase Edge Function
+      const { data, error } = await supabase.functions.invoke('process-audio', {
+        body: { audioData: base64Audio }
+      });
+
+      if (error) throw error;
+
       toast({
-        title: "Recording Complete!",
-        description: "Learnie heard you!",
+        title: "Learnie's Response",
+        description: data.message || "I understood what you said!",
         duration: 3000,
       });
+      
     } catch (error) {
       console.error('Error processing audio:', error);
       toast({
