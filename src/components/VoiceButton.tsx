@@ -27,8 +27,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
     onRecordingChange(false);
     setIsConnecting(false);
     toast({
-      title: "Connection Error",
-      description: message,
+      title: "Oops! Something went wrong",
+      description: "Let's try again!",
       variant: "destructive",
     });
   }, [toast, onRecordingChange]);
@@ -43,8 +43,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       if (!wsManager.isConnected()) {
         setIsConnecting(true);
         toast({
-          title: "Connecting...",
-          description: "Setting up your conversation with Learnie",
+          title: "Hi there!",
+          description: "Learnie is getting ready to talk with you",
         });
         
         try {
@@ -65,8 +65,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         await wsManager.startRecording(onSpeakingChange, handleError);
         onRecordingChange(true);
         toast({
-          title: "I'm listening now",
-          description: "What would you like to ask?",
+          title: "Your turn!",
+          description: "Learnie is listening to you now",
         });
         return;
       }
@@ -76,16 +76,16 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         await wsManager.startRecording(onSpeakingChange, handleError);
         onRecordingChange(true);
         toast({
-          title: "Listening...",
-          description: "Speak into your microphone",
+          title: "I'm listening!",
+          description: "Tell me something!",
         });
       } else {
         // Manual stop - this will trigger response generation with captured audio
         wsManager.manualStop();
         onRecordingChange(false);
         toast({
-          title: "Processing...",
-          description: "Getting your response ready",
+          title: "Got it!",
+          description: "Learnie is thinking...",
         });
       }
     } catch (error) {
@@ -98,6 +98,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
     <button
       onClick={handleClick}
       disabled={isConnecting}
+      aria-label={isConnecting ? "Connecting..." : isRecording ? "Stop talking" : isSpeaking ? "Interrupt Learnie" : "Start talking"}
       className={cn(
         "relative w-40 h-40 md:w-56 md:h-56 text-white text-2xl md:text-4xl",
         "font-baloo font-bold transition-all duration-300 shadow-lg",
@@ -151,12 +152,18 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         </div>
       )}
       
-      {/* Add hint text for when speaking */}
-      {isSpeaking && (
-        <div className="absolute -bottom-12 left-0 right-0 text-center text-sm text-white/70 animate-fade-in">
-          Tap to interrupt
-        </div>
-      )}
+      {/* Status labels for children */}
+      <div className="absolute -bottom-12 left-0 right-0 text-center text-lg font-fredoka animate-fade-in">
+        {isRecording ? (
+          <span className="text-kinder-red">I'm listening!</span>
+        ) : isSpeaking ? (
+          <span className="text-kinder-purple">Tap to interrupt</span>
+        ) : isConnecting ? (
+          <span>Getting ready...</span>
+        ) : (
+          <span>Tap to talk!</span>
+        )}
+      </div>
     </button>
   );
 };
