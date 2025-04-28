@@ -176,15 +176,20 @@ const LearnieAssistant: React.FC = () => {
     };
   }, []);
 
+  // Fix: Handle button click directly here instead of making the parent div clickable
+  const handleButtonClick = () => {
+    if (!isRecording && !isConnecting) {
+      startRecording();
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center gap-2">      
-      <div 
-        className="relative p-4"
-        onClick={() => !isRecording && !isConnecting && startRecording()}
-      >
+      <div className="relative p-4">
         <VoiceButton 
           isRecording={isRecording}
           onStopRecording={stopRecording}
+          onStartRecording={handleButtonClick}
         />
       </div>
       

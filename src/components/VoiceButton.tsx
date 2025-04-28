@@ -1,14 +1,17 @@
+
 import React from 'react';
 import { cn } from '@/lib/utils';
 
 interface VoiceButtonProps {
   isRecording: boolean;
   onStopRecording: () => void;
+  onStartRecording: () => void;
 }
 
 const VoiceButton: React.FC<VoiceButtonProps> = ({ 
   isRecording,
-  onStopRecording
+  onStopRecording,
+  onStartRecording
 }) => {
   return (
     <div className="relative">
@@ -36,8 +39,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       )}
       
       <button
-        onClick={onStopRecording}
-        disabled={!isRecording}
+        onClick={isRecording ? onStopRecording : onStartRecording}
         className={cn(
           "relative w-40 h-40 md:w-56 md:h-56 text-white text-2xl md:text-4xl",
           "font-baloo font-bold transition-all duration-300 shadow-lg",
@@ -47,7 +49,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           isRecording 
             ? "bg-kinder-pink animate-bounce-soft" 
             : "bg-kinder-purple hover:bg-kinder-red",
-          !isRecording && "opacity-70 cursor-not-allowed"
+          "cursor-pointer" // Make sure cursor indicates it's clickable
         )}
       >
         <div className={cn(
