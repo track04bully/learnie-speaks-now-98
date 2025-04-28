@@ -3,6 +3,7 @@ import { AudioManager } from './AudioManager';
 
 interface LearnieCallback {
   onSpeakingChange: (isSpeaking: boolean) => void;
+  onError?: (message: string) => void;
 }
 
 export class WebSocketManager {
@@ -19,6 +20,8 @@ export class WebSocketManager {
   private maxReconnectAttempts: number = 3;
   private inactivityTimeout: NodeJS.Timeout | null = null;
   private sessionTimeoutDuration: number = 5 * 60 * 1000; // 5 minutes of inactivity
+  private sessionResponseTimeout: NodeJS.Timeout | null = null;
+  private lastSentEvent: any = null;
 
   private constructor() {
     this.audioManager = new AudioManager((isSpeaking) => {
@@ -56,13 +59,33 @@ export class WebSocketManager {
       this.ws.onopen = () => {
         console.log("WebSocket connected");
         this.reconnectAttempts = 0;
-        this.sendSessionConfig();
+        
+        // Setup response timeout for session creation
+        this.sessionResponseTimeout = setTimeout(() => {
+          console.error("No response received after session configuration");
+          if (this.lastLearnieCallback?.onError) {
+            this.lastLearnieCallback.onError("Connection timed out. Please try again.");
+          }
+          this.disconnect();
+          reject(new Error("Session configuration timeout"));
+        }, 10000);
+        
+        // We don't send session config here as the server will handle it
         this.resetInactivityTimeout();
         resolve();
       };
 
       this.ws.onerror = (error) => {
         console.error("WebSocket error:", error);
+        
+        // Log the last sent event that might have caused the error
+        if (this.lastSentEvent) {
+          console.error("Last sent event that might have caused the error:", this.lastSentEvent);
+        }
+        
+        if (this.lastLearnieCallback?.onError) {
+          this.lastLearnieCallback.onError("Connection failed. Please check your network and try again.");
+        }
         reject(error);
       };
 
@@ -73,17 +96,28 @@ export class WebSocketManager {
 
   private handleWebSocketClose() {
     console.log("WebSocket closed");
+    this.clearTimeouts();
+    
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
       setTimeout(() => this.connect(), 1000 * this.reconnectAttempts);
     } else {
       this.stopRecording("Connection lost. Tap to reconnect.");
+      if (this.lastLearnieCallback?.onError) {
+        this.lastLearnieCallback.onError("Connection lost. Tap to reconnect.");
+      }
     }
   }
 
   private handleMessage = (event: MessageEvent) => {
     try {
+      // Clear session response timeout if it exists - we received something
+      if (this.sessionResponseTimeout) {
+        clearTimeout(this.sessionResponseTimeout);
+        this.sessionResponseTimeout = null;
+      }
+      
       const data = JSON.parse(event.data);
       console.log("Received message:", data);
 
@@ -114,6 +148,15 @@ export class WebSocketManager {
           break;
         case 'session.created':
           console.log("Session created successfully");
+          break;
+        case 'session.updated':
+          console.log("Session updated successfully");
+          break;
+        case 'error':
+          console.error("Error message from server:", data.message);
+          if (this.lastLearnieCallback?.onError) {
+            this.lastLearnieCallback.onError(data.message || "An error occurred");
+          }
           break;
       }
     } catch (error) {
@@ -162,41 +205,58 @@ export class WebSocketManager {
     }, this.sessionTimeoutDuration);
   }
 
-  private sendSessionConfig() {
-    if (this.ws?.readyState !== WebSocket.OPEN) return;
-
-    const sessionConfig = {
-      type: "session.update",
-      event_id: `evt_${Date.now()}`,
-      session: {
-        modalities: ["text", "audio"],
-        instructions: "You are Learnie, a friendly and patient tutor for children. Always speak in simple, clear language that a child can understand. Be encouraging and supportive. If a concept is complex, break it down into smaller, easy-to-understand pieces. Use examples from everyday life that children can relate to. Never use complex vocabulary - if you need to introduce a new word, explain what it means in simple terms. Always maintain a positive, encouraging tone.",
-        voice: "echo",
-        input_audio_format: "pcm16",
-        output_audio_format: "pcm16",
-        input_audio_transcription: {
-          model: "whisper-1"
-        },
-        turn_detection: {
-          type: "server_vad",
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 1000
-        },
-        temperature: 0.8,
-        max_response_output_tokens: "inf"
-      }
-    };
-
-    console.log("Sending session config:", sessionConfig);
-    this.ws.send(JSON.stringify(sessionConfig));
+  private clearTimeouts() {
+    if (this.sessionResponseTimeout) {
+      clearTimeout(this.sessionResponseTimeout);
+      this.sessionResponseTimeout = null;
+    }
+    
+    if (this.inactivityTimeout) {
+      clearTimeout(this.inactivityTimeout);
+      this.inactivityTimeout = null;
+    }
+    
+    if (this.silenceTimeout) {
+      clearTimeout(this.silenceTimeout);
+      this.silenceTimeout = null;
+    }
+    
+    if (this.autoStopTimeout) {
+      clearTimeout(this.autoStopTimeout);
+      this.autoStopTimeout = null;
+    }
   }
 
-  async startRecording(onSpeakingChange?: (isSpeaking: boolean) => void) {
+  // Send a custom JSON event with validation
+  sendJsonEvent(event: any) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error("Cannot send event: WebSocket not connected");
+      return false;
+    }
+    
+    try {
+      // Validate JSON by stringifying then parsing
+      const jsonStr = JSON.stringify(event);
+      JSON.parse(jsonStr); // Just to make sure it's valid
+      
+      // Keep track of the last sent event for debugging
+      this.lastSentEvent = event;
+      
+      this.ws.send(jsonStr);
+      console.log("Sent JSON event:", event);
+      return true;
+    } catch (error) {
+      console.error("Failed to send JSON event:", error);
+      return false;
+    }
+  }
+
+  async startRecording(onSpeakingChange?: (isSpeaking: boolean) => void, onError?: (message: string) => void) {
     if (!this.audioRecorder) return;
     
     this.lastLearnieCallback = {
       onSpeakingChange: onSpeakingChange || (() => {}),
+      onError: onError
     };
     
     this.isProcessingResponse = false;
@@ -239,22 +299,9 @@ export class WebSocketManager {
 
   disconnect() {
     console.log('Closing WebSocket connection and cleaning up resources');
-    
-    // Clear all timeouts
-    if (this.inactivityTimeout) {
-      clearTimeout(this.inactivityTimeout);
-      this.inactivityTimeout = null;
-    }
-    if (this.silenceTimeout) {
-      clearTimeout(this.silenceTimeout);
-      this.silenceTimeout = null;
-    }
-    if (this.autoStopTimeout) {
-      clearTimeout(this.autoStopTimeout);
-      this.autoStopTimeout = null;
-    }
-
+    this.clearTimeouts();
     this.isProcessingResponse = false;
+    
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -271,9 +318,9 @@ export class WebSocketManager {
     console.log('Manual stop triggered');
     if (this.ws?.readyState === WebSocket.OPEN) {
       // Tell the server to process whatever audio we have
-      this.ws.send(JSON.stringify({
+      this.sendJsonEvent({
         type: 'input_audio_buffer.commit'
-      }));
+      });
     }
     this.stopRecording();
     
@@ -289,9 +336,9 @@ export class WebSocketManager {
 
     // Tell the server to cancel the current response
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
+      this.sendJsonEvent({
         type: 'response.cancel'
-      }));
+      });
       console.log('Sent response.cancel event');
     }
     
