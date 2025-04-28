@@ -17,16 +17,25 @@ const LearnieAssistant: React.FC = () => {
     setIsProcessing(true);
     
     try {
+      console.log("Processing audio recording...");
+      
       // Convert blob to base64
       const buffer = await blob.arrayBuffer();
       const base64Audio = Buffer.from(buffer).toString('base64');
+      
+      console.log("Audio converted to base64, calling Supabase function...");
       
       // Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('process-audio', {
         body: { audioData: base64Audio }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
+
+      console.log("Function response:", data);
 
       toast({
         title: "Learnie's Response",
@@ -38,7 +47,7 @@ const LearnieAssistant: React.FC = () => {
       console.error('Error processing audio:', error);
       toast({
         title: "Error",
-        description: "Could not process your voice message",
+        description: "Could not process your voice message. Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -55,11 +64,12 @@ const LearnieAssistant: React.FC = () => {
     <div className="flex flex-col items-center justify-center gap-2">      
       <div 
         className="relative p-4"
-        onClick={() => !isRecording && handleRecordingStart()}
+        onClick={() => !isRecording && !isProcessing && handleRecordingStart()}
       >
         <VoiceButton 
           maxRecordingTime={8000} 
           onRecordingComplete={handleRecordingComplete} 
+          disabled={isProcessing}
         />
       </div>
       
