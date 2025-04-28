@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
@@ -43,10 +42,12 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           description: "Speak into your microphone",
         });
       } else {
-        wsManager.stopRecording();
+        // Manual stop - this will trigger response generation with captured audio
+        wsManager.manualStop();
         onRecordingChange(false);
         toast({
-          title: "Stopped listening",
+          title: "Processing...",
+          description: "Getting your response ready",
         });
       }
     } catch (error) {

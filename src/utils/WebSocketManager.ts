@@ -1,4 +1,3 @@
-
 import { AudioRecorder } from './AudioRecorder';
 import { AudioManager } from './AudioManager';
 
@@ -217,5 +216,16 @@ export class WebSocketManager {
 
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  manualStop() {
+    console.log('Manual stop triggered');
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      // Tell the server to process whatever audio we have
+      this.ws.send(JSON.stringify({
+        type: 'input_audio_buffer.commit'
+      }));
+    }
+    this.stopRecording();
   }
 }
