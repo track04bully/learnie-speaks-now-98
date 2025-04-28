@@ -1,8 +1,6 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 interface VoiceButtonProps {
   maxRecordingTime?: number;
@@ -111,7 +109,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         className={cn(
           "relative w-40 h-40 md:w-56 md:h-56 rounded-full text-white text-2xl md:text-4xl",
           "font-baloo font-bold transition-all duration-300 shadow-lg",
-          "flex flex-col items-center justify-center gap-2",
+          "flex flex-col items-center justify-center gap-2 p-0 overflow-hidden",
           isRecording 
             ? "bg-gradient-to-br from-learnie-pink to-learnie-purple animate-bounce-soft" 
             : "bg-gradient-to-br from-learnie-blue to-learnie-purple hover:from-learnie-purple hover:to-learnie-blue",
@@ -119,19 +117,18 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         )}
       >
         <div className={cn(
-          "flex items-center justify-center",
+          "flex items-center justify-center w-full h-full",
           isRecording && "scale-110 transition-transform"
         )}>
-          {isRecording ? (
-            <Mic size={40} className="mr-2" />
-          ) : (
-            <Mic size={36} className="mr-2" />
-          )}
-          <span>{isRecording ? "Listening..." : "Ask Learnie!"}</span>
+          <img 
+            src="/lovable-uploads/636fc3ff-f504-4d44-9a6b-bb1bf0a7dba1.png"
+            alt="Learnie character"
+            className="w-32 h-32 md:w-40 md:h-40 object-contain"
+          />
         </div>
         
         {isRecording && (
-          <div className="text-base md:text-lg opacity-80">
+          <div className="absolute bottom-4 text-base md:text-lg opacity-80">
             {countdown > 0 ? `${countdown}...` : "Processing..."}
           </div>
         )}
