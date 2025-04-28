@@ -30,8 +30,8 @@ const LearnieAssistant: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center gap-8">
-      <h1 className="text-4xl md:text-6xl font-fredoka text-center text-learnie-purple">
-        Ask <span className="text-learnie-blue">Learnie!</span>
+      <h1 className="text-4xl md:text-6xl font-fredoka text-center text-kinder-purple">
+        Ask <span className="text-kinder-red">Learnie!</span>
       </h1>
       
       <div 
@@ -46,7 +46,7 @@ const LearnieAssistant: React.FC = () => {
       
       <AudioWaves isActive={isRecording} />
       
-      <p className="text-lg md:text-xl font-baloo text-center max-w-md text-gray-600">
+      <p className="text-lg md:text-xl font-baloo text-center max-w-md text-kinder-black">
         {isRecording 
           ? "Learnie is listening! What would you like to know?" 
           : "Tap the button and ask Learnie anything!"}

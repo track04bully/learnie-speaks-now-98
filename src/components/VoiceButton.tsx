@@ -101,7 +101,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         {[...Array(6)].map((_, i) => (
           <div
             key={i}
-            className="absolute w-2 h-2 rounded-full bg-learnie-yellow/20"
+            className="absolute w-2 h-2 rounded-full bg-kinder-yellow/20"
             style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
@@ -114,8 +114,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
 
       {isRecording && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="absolute w-full h-full rounded-full bg-learnie-blue/20 animate-pulse-ring"></span>
-          <span className="absolute w-full h-full rounded-full bg-learnie-purple/10 animate-pulse-ring" style={{ animationDelay: '0.5s' }}></span>
+          <span className="absolute w-full h-full rounded-full bg-kinder-purple/20 animate-pulse-ring"></span>
+          <span className="absolute w-full h-full rounded-full bg-kinder-pink/10 animate-pulse-ring" style={{ animationDelay: '0.5s' }}></span>
         </div>
       )}
       
@@ -126,10 +126,10 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           "relative w-40 h-40 md:w-56 md:h-56 rounded-full text-white text-2xl md:text-4xl",
           "font-baloo font-bold transition-all duration-300 shadow-lg",
           "flex flex-col items-center justify-center gap-2 p-0 overflow-hidden",
-          "hover:scale-105 hover:shadow-[0_0_30px_rgba(155,122,255,0.3)] transition-all duration-300",
+          "hover:scale-105 hover:shadow-[0_0_30px_rgba(107,102,255,0.3)] transition-all duration-300",
           isRecording 
-            ? "bg-gradient-to-br from-learnie-pink to-learnie-purple animate-bounce-soft" 
-            : "bg-gradient-to-br from-learnie-blue to-learnie-purple hover:from-learnie-purple hover:to-learnie-blue",
+            ? "bg-gradient-to-br from-kinder-pink to-kinder-purple animate-bounce-soft" 
+            : "bg-gradient-to-br from-kinder-purple to-kinder-red hover:from-kinder-purple hover:to-kinder-pink",
           !isReady && "opacity-70 cursor-not-allowed"
         )}
       >
