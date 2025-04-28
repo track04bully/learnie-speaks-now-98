@@ -31,7 +31,7 @@ serve(async (req) => {
 
     console.log("Requesting ephemeral token from OpenAI");
     
-    // Request an ephemeral token from OpenAI
+    // Request an ephemeral token from OpenAI with optimal speech-to-speech settings
     const tokenResponse = await fetch("https://api.openai.com/v1/realtime/sessions", {
       method: "POST",
       headers: {
@@ -41,7 +41,23 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "gpt-4o-realtime-preview-2024-10-01",
         voice: "alloy",
-        instructions: "You are Learnie, a friendly 8-year-old guide who loves to help others learn. You speak in short, playful sentences and make learning fun! You're enthusiastic, positive, and good at explaining things in simple terms that kids can understand. You use examples from everyday life and encourage curiosity. You celebrate when someone understands a new concept. Remember to keep your answers brief and engaging!"
+        input_audio_format: "pcm16",
+        output_audio_format: "pcm16",
+        input_audio_transcription: {
+          model: "whisper-1"
+        },
+        input_audio_noise_reduction: {
+          type: "subtle"
+        },
+        turn_detection: {
+          type: "server_vad",
+          threshold: 0.5,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 1000
+        },
+        instructions: "You are Learnie, a friendly 8-year-old guide who loves to help others learn. You speak in short, playful sentences and make learning fun! You're enthusiastic, positive, and good at explaining things in simple terms that kids can understand. You use examples from everyday life and encourage curiosity. You celebrate when someone understands a new concept. Remember to keep your answers brief and engaging!",
+        temperature: 0.8,
+        max_response_output_tokens: "inf"
       }),
     });
 
@@ -70,29 +86,8 @@ serve(async (req) => {
       // Send initial request with ephemeral token
       const EPHEMERAL_KEY = tokenData.client_secret.value;
       openAISocket.send(`Authorization: Bearer ${EPHEMERAL_KEY}\r\n` +
-                        'Content-Type: application/json\r\n' +
-                        '\r\n' +
-                        JSON.stringify({
-                          type: "session.update",
-                          session: {
-                            modalities: ["text", "audio"],
-                            instructions: "You are Learnie, a friendly educational assistant who helps users learn new things. You are enthusiastic, supportive, and good at explaining complex topics in simple terms.",
-                            voice: "alloy",
-                            input_audio_format: "pcm16",
-                            output_audio_format: "pcm16",
-                            input_audio_transcription: {
-                              model: "whisper-1"
-                            },
-                            turn_detection: {
-                              type: "server_vad",
-                              threshold: 0.5,
-                              prefix_padding_ms: 300,
-                              silence_duration_ms: 1000
-                            },
-                            temperature: 0.7,
-                            max_response_output_tokens: "inf"
-                          }
-                        }));
+                       'Content-Type: application/json\r\n' +
+                       '\r\n');
     };
 
     // Forward messages from client to OpenAI
@@ -109,12 +104,9 @@ serve(async (req) => {
       }
     };
 
-    // Handle errors
+    // Handle errors and connection closure
     openAISocket.onerror = (event) => {
       console.error("OpenAI WebSocket error:", event);
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ error: "OpenAI connection error" }));
-      }
     };
 
     socket.onerror = (event) => {
@@ -122,7 +114,6 @@ serve(async (req) => {
       openAISocket.close();
     };
 
-    // Close connections properly
     socket.onclose = () => {
       console.log("Client connection closed");
       openAISocket.close();
