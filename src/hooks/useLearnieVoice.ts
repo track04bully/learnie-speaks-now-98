@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,14 +22,19 @@ export const useLearnieVoice = () => {
       // Get ephemeral token from our edge function
       const { data, error } = await supabase.functions.invoke('realtime-chat');
       
-      if (error || !data?.client_secret?.value) {
+      if (error) {
+        console.error('Error getting token:', error);
         throw new Error(error?.message || 'Failed to get auth token');
       }
 
-      // Connect to OpenAI's realtime API using WebSocket directly
-      // (Note: We're using a direct WebSocket connection, not invoke)
+      console.log('Got token data:', data);
+
+      // Connect directly to the WebSocket edge function
       const SUPABASE_PROJECT_REF = "ceofrvinluwymyuizztv";
-      socketRef.current = new WebSocket(`wss://${SUPABASE_PROJECT_REF}.functions.supabase.co/realtime-chat`);
+      const wsUrl = `wss://${SUPABASE_PROJECT_REF}.functions.supabase.co/realtime-chat`;
+      console.log('Connecting to WebSocket:', wsUrl);
+      
+      socketRef.current = new WebSocket(wsUrl);
       socketRef.current.binaryType = 'arraybuffer';
 
       // Set up audio context for recording
@@ -41,6 +47,15 @@ export const useLearnieVoice = () => {
         console.log("WebSocket connection opened");
         
         try {
+          // If we have a token from the initial invoke call, send it to authenticate
+          if (data?.client_secret?.value) {
+            console.log('Sending token for authentication');
+            socketRef.current?.send(JSON.stringify({
+              type: 'authentication',
+              token: data.client_secret.value
+            }));
+          }
+          
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: {
               sampleRate: 24000,
@@ -120,8 +135,8 @@ export const useLearnieVoice = () => {
       };
 
       // Handle WebSocket closure
-      socketRef.current.onclose = () => {
-        console.log("WebSocket connection closed");
+      socketRef.current.onclose = (event) => {
+        console.log("WebSocket connection closed with code:", event.code, "reason:", event.reason);
         cleanup();
       };
       
