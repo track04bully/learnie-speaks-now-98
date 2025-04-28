@@ -8,11 +8,19 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+  
   const { headers } = req;
   const upgradeHeader = headers.get("upgrade") || "";
 
   if (upgradeHeader.toLowerCase() !== "websocket") {
-    return new Response("Expected WebSocket connection", { status: 400 });
+    return new Response("Expected WebSocket connection", { 
+      status: 400,
+      headers: corsHeaders
+    });
   }
 
   const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
@@ -26,6 +34,7 @@ serve(async (req) => {
   try {
     // Create WebSocket connection with client
     const { socket: clientSocket, response } = Deno.upgradeWebSocket(req);
+    console.log("Client connected");
 
     // Connect to OpenAI's Realtime API
     const openAISocket = new WebSocket("wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01");
@@ -61,6 +70,7 @@ serve(async (req) => {
     // Forward messages from client to OpenAI
     clientSocket.onmessage = (event) => {
       if (openAISocket.readyState === WebSocket.OPEN) {
+        console.log("Forwarding message to OpenAI");
         openAISocket.send(event.data);
       }
     };
@@ -68,6 +78,7 @@ serve(async (req) => {
     // Forward messages from OpenAI to client
     openAISocket.onmessage = (event) => {
       if (clientSocket.readyState === WebSocket.OPEN) {
+        console.log("Received message from OpenAI");
         clientSocket.send(event.data);
       }
     };
@@ -83,12 +94,19 @@ serve(async (req) => {
       clientSocket.close();
     };
 
+    openAISocket.onerror = (error) => {
+      console.error("OpenAI WebSocket error:", error);
+      if (clientSocket.readyState === WebSocket.OPEN) {
+        clientSocket.close(1011, "Error connecting to OpenAI");
+      }
+    };
+
     return response;
   } catch (error) {
     console.error("Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: corsHeaders
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });

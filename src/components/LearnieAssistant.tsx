@@ -55,7 +55,10 @@ const LearnieAssistant: React.FC = () => {
   const connectToWebSocket = async () => {
     try {
       setIsConnecting(true);
+      // Fix: Use a direct WebSocket URL with proper formatting
       const wsUrl = `wss://ceofrvinluwymyuizztv.functions.supabase.co/realtime-chat`;
+      console.log('Connecting to WebSocket:', wsUrl);
+      
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
@@ -88,8 +91,8 @@ const LearnieAssistant: React.FC = () => {
         }));
       };
 
-      ws.onclose = () => {
-        console.log('WebSocket closed');
+      ws.onclose = (event) => {
+        console.log('WebSocket closed', event.code, event.reason);
         setIsConnecting(false);
         setIsRecording(false);
         webSocketRef.current = null;
@@ -107,15 +110,19 @@ const LearnieAssistant: React.FC = () => {
       };
 
       ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log('Received message:', data);
-        
-        if (data.type === 'response.audio_transcript.delta') {
-          console.log('Transcript:', data.delta);
-        } else if (data.type === 'response.audio.delta') {
-          playAudioChunk(data.delta);
-        } else if (data.type === 'response.audio.done') {
-          setIsSpeaking(false);
+        try {
+          const data = JSON.parse(event.data);
+          console.log('Received message:', data);
+          
+          if (data.type === 'response.audio_transcript.delta') {
+            console.log('Transcript:', data.delta);
+          } else if (data.type === 'response.audio.delta') {
+            playAudioChunk(data.delta);
+          } else if (data.type === 'response.audio.done') {
+            setIsSpeaking(false);
+          }
+        } catch (error) {
+          console.error('Error parsing message:', error);
         }
       };
 
@@ -176,7 +183,7 @@ const LearnieAssistant: React.FC = () => {
     };
   }, []);
 
-  // Fix: Handle button click directly here instead of making the parent div clickable
+  // Handle button click directly here instead of making the parent div clickable
   const handleButtonClick = () => {
     if (!isRecording && !isConnecting) {
       startRecording();
