@@ -1,4 +1,3 @@
-
 export class AudioManager {
   private audioContext: AudioContext;
   private audioQueue: AudioBuffer[] = [];

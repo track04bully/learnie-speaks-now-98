@@ -7,14 +7,18 @@ import { WebSocketManager } from '@/utils/WebSocketManager';
 const LearnieAssistant: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-
-  // Cleanup WebSocket on component unmount
+  
+  // Cleanup all resources when component unmounts
   useEffect(() => {
+    // Cleanup function for component unmount
     return () => {
+      console.log('Cleaning up Learnie Assistant resources...');
       const wsManager = WebSocketManager.getInstance();
       if (wsManager.isConnected()) {
         wsManager.disconnect();
       }
+      setIsRecording(false);
+      setIsSpeaking(false);
     };
   }, []);
 
