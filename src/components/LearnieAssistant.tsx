@@ -12,6 +12,7 @@ const LearnieAssistant: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [micPermission, setMicPermission] = useState<boolean | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
   const { toast } = useToast();
   const { playStreamingTTS } = useTTSStream();
 
@@ -38,12 +39,14 @@ const LearnieAssistant: React.FC = () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true });
       setMicPermission(true);
+      setLastError(null);
       toast({
         title: "Microphone Access Granted",
         description: "You can now talk to Learnie!",
       });
     } catch (error) {
       console.error('Failed to get microphone permission:', error);
+      setLastError("Microphone access denied");
       toast({
         title: "Microphone Access Denied",
         description: "Please allow microphone access in your browser settings",
@@ -61,22 +64,35 @@ const LearnieAssistant: React.FC = () => {
       const buffer = await blob.arrayBuffer();
       const base64Audio = Buffer.from(buffer).toString('base64');
       
+      console.log('Sending audio data to Edge Function, length:', base64Audio.length);
+      
       // Call Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('process-audio', {
         body: { audioData: base64Audio }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase Function error:', error);
+        throw new Error(error.message || 'Error processing audio');
+      }
 
+      if (!data || !data.message) {
+        throw new Error('No response from speech processing service');
+      }
+
+      console.log('Received response:', data);
+      
       // Play the response using TTS
       setIsSpeaking(true);
+      setLastError(null);
       await playStreamingTTS(data.message);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing audio:', error);
+      setLastError(error.message || "Failed to process audio");
       toast({
         title: "Error",
-        description: "Could not process your voice message. Please try again later.",
+        description: error.message || "Could not process your voice message. Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -93,11 +109,11 @@ const LearnieAssistant: React.FC = () => {
     <div className="flex flex-col items-center justify-center gap-2">      
       <div 
         className="relative p-4"
-        onClick={() => !isRecording && !isProcessing && !isSpeaking && handleRecordingStart()}
+        onClick={() => !isRecording && !isProcessing && !isSpeaking && micPermission === true && handleRecordingStart()}
       >
         <VoiceButton 
           onRecordingComplete={handleRecordingComplete} 
-          disabled={isProcessing || isSpeaking}
+          disabled={isProcessing || isSpeaking || micPermission !== true}
         />
       </div>
       
@@ -112,6 +128,12 @@ const LearnieAssistant: React.FC = () => {
               ? "Learnie is listening! What would you like to know?" 
               : "Tap the button and ask Learnie anything!"}
       </p>
+
+      {lastError && (
+        <p className="text-sm text-red-500 text-center max-w-md mt-1">
+          {lastError}
+        </p>
+      )}
 
       {micPermission === false && (
         <div className="mt-4">
