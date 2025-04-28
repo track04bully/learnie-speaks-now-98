@@ -13,7 +13,7 @@ export const useTTSStream = () => {
       const audioData = response.data;
       if (!audioData) throw new Error('No audio data received');
 
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = new AudioContext();
       await audioCtx.resume();
 
       const audioBuffer = await audioCtx.decodeAudioData(
