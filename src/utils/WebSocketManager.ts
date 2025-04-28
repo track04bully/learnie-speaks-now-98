@@ -1,5 +1,10 @@
+
 import { AudioRecorder } from './AudioRecorder';
 import { AudioManager } from './AudioManager';
+
+interface LearnieCallback {
+  onSpeakingChange: (isSpeaking: boolean) => void;
+}
 
 export class WebSocketManager {
   private static instance: WebSocketManager;
@@ -8,6 +13,7 @@ export class WebSocketManager {
   private audioRecorder: AudioRecorder | null = null;
   private audioManager: AudioManager;
   private autoStopTimeout: number | null = null;
+  private lastLearnieCallback: LearnieCallback | null = null;
 
   private constructor() {
     this.audioManager = new AudioManager((isSpeaking) => {
