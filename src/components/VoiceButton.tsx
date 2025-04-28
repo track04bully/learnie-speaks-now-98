@@ -1,9 +1,8 @@
 
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import { cn } from '@/lib/utils';
-import { WebSocketManager } from '@/utils/WebSocketManager';
-import { useToast } from '@/hooks/use-toast';
 import { Mic, MicOff, Speaker } from 'lucide-react';
+import { useLearnieVoice } from '@/hooks/useLearnieVoice';
 
 interface VoiceButtonProps {
   isRecording: boolean;
@@ -18,75 +17,11 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   onSpeakingChange,
   onRecordingChange
 }) => {
-  const { toast } = useToast();
-  const [isConnecting, setIsConnecting] = useState(false);
+  const { isConnecting, handleStartVoice } = useLearnieVoice();
 
-  const handleClick = useCallback(async () => {
-    try {
-      const wsManager = WebSocketManager.getInstance();
-      
-      // If Learnie is speaking, interpret tap as wanting to interrupt and start talking
-      if (isSpeaking) {
-        wsManager.interruptSpeaking(); // This will stop the current audio
-        // Small delay to ensure audio has stopped before starting new recording
-        setTimeout(async () => {
-          if (!wsManager.isConnected()) {
-            await wsManager.connect();
-          }
-          await wsManager.startRecording(onSpeakingChange);
-          onRecordingChange(true);
-        }, 100);
-        return;
-      }
-      
-      // If already recording, stop it
-      if (isRecording) {
-        wsManager.disconnect();
-        onRecordingChange(false);
-        onSpeakingChange(false);
-        return;
-      }
-
-      // Start new recording
-      if (!wsManager.isConnected()) {
-        setIsConnecting(true);
-        toast({
-          title: "Hi there!",
-          description: "Learnie is getting ready to listen",
-        });
-        
-        try {
-          await wsManager.connect();
-          setIsConnecting(false);
-        } catch (error) {
-          setIsConnecting(false);
-          toast({
-            title: "Oops!",
-            description: "Let's try that again!",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-
-      await wsManager.startRecording(onSpeakingChange, (error) => {
-        toast({
-          title: "Oops!",
-          description: "Let's try that again!",
-          variant: "destructive",
-        });
-      });
-      onRecordingChange(true);
-      
-    } catch (error) {
-      console.error("Error:", error);
-      toast({
-        title: "Oops!",
-        description: "Let's try that again!",
-        variant: "destructive",
-      });
-    }
-  }, [isRecording, isSpeaking, toast, onRecordingChange, onSpeakingChange]);
+  const handleClick = () => {
+    handleStartVoice(onSpeakingChange, onRecordingChange, isSpeaking, isRecording);
+  };
 
   return (
     <button
