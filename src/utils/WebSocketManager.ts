@@ -25,6 +25,7 @@ export class WebSocketManager {
   private lastSentEvent: any = null;
   private audioBufferCreated: boolean = false;
   private connectionStartTime: number = 0;
+  private sessionConfirmed: boolean = false;
 
   private constructor() {
     this.audioManager = new AudioManager((isSpeaking) => {
@@ -59,6 +60,8 @@ export class WebSocketManager {
       const wsUrl = `wss://${this.projectId}.functions.supabase.co/functions/v1/realtime-chat`;
       console.log("Connecting to WebSocket:", wsUrl);
       this.connectionStartTime = Date.now();
+      this.sessionConfirmed = false;  // Reset session confirmation flag
+      this.audioBufferCreated = false; // Reset audio buffer flag
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
@@ -108,6 +111,8 @@ export class WebSocketManager {
   private handleWebSocketClose(event: CloseEvent) {
     console.log("WebSocket closed with code:", event.code, "reason:", event.reason);
     this.clearTimeouts();
+    this.sessionConfirmed = false;
+    this.audioBufferCreated = false;
     
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
@@ -159,10 +164,10 @@ export class WebSocketManager {
           break;
         case 'session.created':
           console.log("Session created successfully");
-          this.audioBufferCreated = false; // Reset buffer created flag when a new session starts
           break;
         case 'session.updated':
           console.log("Session updated successfully");
+          this.sessionConfirmed = true; // Mark session as confirmed
           break;
         case 'error':
           console.error("Error message from server:", data.message);
@@ -189,6 +194,12 @@ export class WebSocketManager {
 
   private handleAudioData(audioData: ArrayBuffer) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    
+    // Only proceed if the session is confirmed
+    if (!this.sessionConfirmed) {
+      console.log("Session not confirmed yet, buffering audio");
+      return;
+    }
     
     // Reset silence timeout since we received audio
     if (this.silenceTimeout) {
@@ -353,6 +364,7 @@ export class WebSocketManager {
     this.clearTimeouts();
     this.isProcessingResponse = false;
     this.audioBufferCreated = false;
+    this.sessionConfirmed = false;
     
     if (this.ws) {
       this.ws.close();
