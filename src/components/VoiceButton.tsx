@@ -1,3 +1,4 @@
+
 import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
@@ -118,11 +119,6 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           )}
         </div>
       </div>
-      {errorMessage && (
-        <div className="absolute -bottom-12 left-0 right-0 text-center text-sm text-red-500 animate-fade-in">
-          {errorMessage}
-        </div>
-      )}
       
       {/* Connection status */}
       {isConnecting && (
