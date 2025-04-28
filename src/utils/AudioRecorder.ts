@@ -2,7 +2,7 @@
 export class AudioRecorder {
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
-  private processor: ScriptProcessorNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
 
   constructor(private onAudioData: (audioData: Float32Array) => void) {}
@@ -23,16 +23,20 @@ export class AudioRecorder {
         sampleRate: 24000,
       });
       
-      this.source = this.audioContext.createMediaStreamSource(this.stream);
-      this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+      // Load and initialize the audio worklet
+      await this.audioContext.audioWorklet.addModule('/audioWorkletProcessor.js');
       
-      this.processor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        this.onAudioData(new Float32Array(inputData));
+      this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');
+      this.source = this.audioContext.createMediaStreamSource(this.stream);
+      
+      // Handle PCM data from the worklet
+      this.workletNode.port.onmessage = (event) => {
+        const pcmData = event.data;
+        this.onAudioData(new Float32Array(pcmData));
       };
       
-      this.source.connect(this.processor);
-      this.processor.connect(this.audioContext.destination);
+      this.source.connect(this.workletNode);
+      this.workletNode.connect(this.audioContext.destination);
       
       console.log('Audio recording started');
     } catch (error) {
@@ -46,9 +50,9 @@ export class AudioRecorder {
       this.source.disconnect();
       this.source = null;
     }
-    if (this.processor) {
-      this.processor.disconnect();
-      this.processor = null;
+    if (this.workletNode) {
+      this.workletNode.disconnect();
+      this.workletNode = null;
     }
     if (this.stream) {
       this.stream.getTracks().forEach(track => track.stop());

@@ -1,4 +1,3 @@
-
 import { AudioRecorder } from './AudioRecorder';
 
 export class WebSocketManager {
@@ -101,14 +100,8 @@ export class WebSocketManager {
   private handleAudioData(audioData: Float32Array) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-    // Convert Float32Array to Int16Array (16-bit PCM)
-    const int16Array = new Int16Array(audioData.length);
-    for (let i = 0; i < audioData.length; i++) {
-      const s = Math.max(-1, Math.min(1, audioData[i]));
-      int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-    }
-    
-    const uint8Array = new Uint8Array(int16Array.buffer);
+    // The audio data is already in Int16Array format from the AudioWorklet
+    const uint8Array = new Uint8Array(audioData.buffer);
     let binary = '';
     const chunkSize = 0x8000;
     
