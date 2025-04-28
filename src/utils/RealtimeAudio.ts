@@ -140,30 +140,43 @@ export class RealtimeChat {
           const data = JSON.parse(event.data);
           console.log("Received WebSocket message:", data.type);
           
-          if (data.type === "response.audio.delta") {
-            this.onSpeakingChange(true);
-            const audioData = this.decodeBase64ToPCM(data.delta);
-            this.addToQueue(audioData);
-          }
-          
-          else if (data.type === "response.audio_transcript.delta") {
-            this.onTranscriptUpdate(data.delta);
-          }
-          
-          else if (data.type === "response.audio.done") {
-            setTimeout(() => this.onSpeakingChange(false), 300);
-          }
-          
-          else if (data.type === "speech_stopped") {
-            this.onProcessing(true);
-          }
-          
-          else if (data.type === "response.created") {
-            this.onProcessing(false);
-          }
-          
-          else {
-            console.log("Other message type:", data.type);
+          switch (data.type) {
+            case "response.audio.delta":
+              this.onSpeakingChange(true);
+              const audioData = this.decodeBase64ToPCM(data.delta);
+              this.addToQueue(audioData);
+              break;
+              
+            case "response.audio_transcript.delta":
+              this.onTranscriptUpdate(data.delta);
+              break;
+              
+            case "response.audio.done":
+              setTimeout(() => this.onSpeakingChange(false), 300);
+              break;
+              
+            case "response.created":
+              console.log("Assistant started responding");
+              this.onProcessing(false);
+              break;
+              
+            case "response.done":
+              console.log("Assistant finished responding");
+              this.onSpeakingChange(false);
+              break;
+              
+            case "heartbeat":
+              console.log("Received heartbeat from server");
+              // Keep connection alive, no action needed
+              break;
+              
+            case "speech_stopped":
+              console.log("Speech input stopped");
+              this.onProcessing(true);
+              break;
+
+            default:
+              console.log("Other message type:", data.type);
           }
         } catch (error) {
           console.error("Error processing WebSocket message:", error);
