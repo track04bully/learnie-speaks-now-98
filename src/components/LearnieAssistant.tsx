@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Trash2, RefreshCw, Volume2, Mic } from 'lucide-react';
+import { Trash2, RefreshCw, Volume2, Mic, AlertCircle } from 'lucide-react';
 import AudioWaves from './AudioWaves';
 import { useLearnieVoice } from '@/hooks/useLearnieVoice';
 import { Message } from '@/utils/RealtimeAudio';
@@ -11,6 +11,7 @@ const LearnieAssistant: React.FC = () => {
   const { toast } = useToast();
   const { 
     phase, 
+    transcript, 
     messageHistory, 
     isProcessing,
     error,
@@ -26,11 +27,18 @@ const LearnieAssistant: React.FC = () => {
     if (error) {
       toast({
         title: "Connection issue",
-        description: "There was a problem with the connection. Try again or refresh the page.",
+        description: "There was a problem with the connection. Automatically retrying...",
         variant: "destructive",
       });
     }
   }, [error, toast]);
+
+  // Show transcript in real-time (for debugging)
+  useEffect(() => {
+    if (transcript && phase === 'speak') {
+      console.log("Current transcript:", transcript);
+    }
+  }, [transcript, phase]);
 
   return (
     <div className="flex flex-col items-center justify-center gap-4">      
@@ -82,6 +90,7 @@ const LearnieAssistant: React.FC = () => {
             ) : 
              phase === 'error' ? (
               <>
+                <AlertCircle size={16} />
                 Error
               </>
             ) : 
@@ -91,6 +100,15 @@ const LearnieAssistant: React.FC = () => {
       </div>
       
       <AudioWaves isActive={phase === 'listen'} />
+      
+      {/* Current transcript for debugging */}
+      {phase === 'speak' && transcript && (
+        <div className="max-w-lg p-3 bg-kinder-pink/10 rounded-lg">
+          <p className="text-sm text-gray-700">
+            {transcript}
+          </p>
+        </div>
+      )}
       
       {/* Processing indicator */}
       {isProcessing && (
@@ -108,7 +126,7 @@ const LearnieAssistant: React.FC = () => {
           size="sm"
           className="flex items-center gap-2"
         >
-          <RefreshCw size={16} className="animate-spin" />
+          <RefreshCw size={16} className="mr-1" />
           Retry connection
         </Button>
       )}

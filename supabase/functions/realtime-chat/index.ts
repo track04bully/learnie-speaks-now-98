@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
@@ -295,6 +296,9 @@ serve(async (req) => {
         try {
           const data = JSON.parse(event.data);
           
+          // Log all response types to help with debugging
+          console.log("Received from OpenAI:", data.type);
+          
           // Moderate AI responses
           if (data.type === "response.audio_transcript.delta") {
             const isAppropriate = await moderateContent(data.delta || "");
@@ -330,11 +334,11 @@ serve(async (req) => {
             }
           }
           
-          console.log("Forwarding message from OpenAI to client");
         } catch (error) {
           console.log("Non-JSON message forwarded to client");
         }
         
+        // Forward all messages to client regardless of parsing success
         socket.send(event.data);
       }
     };

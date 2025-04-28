@@ -15,18 +15,25 @@ export const useLearnieVoice = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const realtimeChatRef = useRef<RealtimeChat | null>(null);
+  const connectionAttemptsRef = useRef<number>(0);
+  const maxConnectionAttempts = 3;
 
   const startConversation = async () => {
     try {
-      if (phase !== 'idle') return;
+      if (phase !== 'idle' && phase !== 'error') return;
       setPhase('connecting');
       setError(null);
+      connectionAttemptsRef.current = 0;
       
       if (!realtimeChatRef.current) {
         const chat = new RealtimeChat(
           // Connection change handler
           (connected) => {
-            if (!connected) {
+            if (connected) {
+              setPhase('listen');
+              setError(null);
+              console.log("Connection to Learnie established successfully");
+            } else {
               setPhase('idle');
               console.log("Connection to Learnie ended");
             }
@@ -57,7 +64,6 @@ export const useLearnieVoice = () => {
       }
       
       await realtimeChatRef.current.connect();
-      setPhase('listen');
       
       // Reset transcript for new conversation
       setTranscript('');
@@ -75,6 +81,17 @@ export const useLearnieVoice = () => {
         description: error instanceof Error ? error.message : 'Failed to start conversation',
         variant: "destructive",
       });
+      
+      // Auto-retry connection if not exceeding max attempts
+      if (connectionAttemptsRef.current < maxConnectionAttempts) {
+        connectionAttemptsRef.current++;
+        console.log(`Attempting automatic reconnection (${connectionAttemptsRef.current}/${maxConnectionAttempts})...`);
+        setTimeout(() => {
+          if (phase === 'error') {
+            retryConnection();
+          }
+        }, 2000); // Wait 2 seconds before retrying
+      }
     }
   };
   
