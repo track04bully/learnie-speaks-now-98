@@ -1,10 +1,27 @@
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { WebSocketManager } from '@/utils/WebSocketManager';
 
 const VoiceButton: React.FC = () => {
+  const handleClick = useCallback(async () => {
+    try {
+      const wsManager = WebSocketManager.getInstance();
+      
+      if (!wsManager.isConnected()) {
+        await wsManager.connect();
+      }
+      
+      // Additional audio handling will be added here
+      console.log("WebSocket connection established");
+    } catch (error) {
+      console.error("Error connecting to WebSocket:", error);
+    }
+  }, []);
+
   return (
     <button
+      onClick={handleClick}
       className={cn(
         "relative w-40 h-40 md:w-56 md:h-56 text-white text-2xl md:text-4xl",
         "font-baloo font-bold transition-all duration-300 shadow-lg",
