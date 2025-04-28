@@ -6,6 +6,7 @@ export class AudioManager {
   private gainNode: GainNode;
   private processingChunk: boolean = false;
   private onSpeakingChange?: (isSpeaking: boolean) => void;
+  private activeSource: AudioBufferSourceNode | null = null;
 
   constructor(onSpeakingChange?: (isSpeaking: boolean) => void) {
     this.audioContext = new AudioContext({
@@ -72,9 +73,13 @@ export class AudioManager {
     source.buffer = audioBuffer;
     source.connect(this.gainNode);
     
+    // Store the active source for potential interruption
+    this.activeSource = source;
+    
     return new Promise<void>((resolve) => {
       source.onended = async () => {
         this.isPlaying = false;
+        this.activeSource = null;
         resolve();
       };
       source.start(0);
@@ -92,10 +97,26 @@ export class AudioManager {
   }
 
   stop() {
+    // Immediately stop any currently playing audio
+    if (this.activeSource) {
+      try {
+        this.activeSource.stop();
+        this.activeSource = null;
+      } catch (e) {
+        console.error('Error stopping audio source:', e);
+      }
+    }
+    
+    // Clear the queue and reset state
     this.audioQueue = [];
     this.isPlaying = false;
     this.processingChunk = false;
     this.onSpeakingChange?.(false);
-    this.audioContext.close();
+    
+    // Create a new audio context to ensure clean state
+    this.audioContext.close().catch(e => console.error('Error closing AudioContext:', e));
+    this.audioContext = new AudioContext({ sampleRate: 24000 });
+    this.gainNode = this.audioContext.createGain();
+    this.gainNode.connect(this.audioContext.destination);
   }
 }

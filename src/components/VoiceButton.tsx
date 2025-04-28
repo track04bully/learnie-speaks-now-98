@@ -1,3 +1,4 @@
+
 import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
@@ -24,9 +25,6 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
     // Reset error message on new interaction
     setErrorMessage(null);
 
-    // Disable button interaction while speaking
-    if (isSpeaking) return;
-
     try {
       const wsManager = WebSocketManager.getInstance();
       
@@ -34,6 +32,21 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         await wsManager.connect();
       }
 
+      // If the assistant is speaking, interrupt it
+      if (isSpeaking) {
+        wsManager.interruptSpeaking();
+        // Move straight to recording mode
+        onSpeakingChange(false);
+        await wsManager.startRecording(onSpeakingChange);
+        onRecordingChange(true);
+        toast({
+          title: "I'm listening now",
+          description: "What would you like to ask?",
+        });
+        return;
+      }
+
+      // Handle recording state toggle
       if (!isRecording) {
         await wsManager.startRecording(onSpeakingChange);
         onRecordingChange(true);
@@ -65,7 +78,6 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   return (
     <button
       onClick={handleClick}
-      disabled={isSpeaking}
       className={cn(
         "relative w-40 h-40 md:w-56 md:h-56 text-white text-2xl md:text-4xl",
         "font-baloo font-bold transition-all duration-300 shadow-lg",
@@ -73,7 +85,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         "hover:scale-105 hover:shadow-[0_0_30px_rgba(107,102,255,0.3)] transition-all duration-300",
         "rounded-[45%_55%_52%_48%_/_48%_45%_55%_52%]",
         isRecording ? "bg-kinder-red animate-pulse" : 
-        isSpeaking ? "bg-kinder-purple opacity-75 cursor-not-allowed" : 
+        isSpeaking ? "bg-kinder-purple opacity-90 cursor-pointer" : // Make it clear it's clickable when speaking
         "bg-kinder-purple hover:bg-kinder-red",
         "cursor-pointer"
       )}
@@ -105,6 +117,13 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       {errorMessage && (
         <div className="absolute -bottom-12 left-0 right-0 text-center text-sm text-red-500 animate-fade-in">
           {errorMessage}
+        </div>
+      )}
+      
+      {/* Add hint text for when speaking */}
+      {isSpeaking && (
+        <div className="absolute -bottom-12 left-0 right-0 text-center text-sm text-white/70 animate-fade-in">
+          Tap to interrupt
         </div>
       )}
     </button>

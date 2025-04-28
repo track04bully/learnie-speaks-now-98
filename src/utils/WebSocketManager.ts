@@ -1,3 +1,4 @@
+
 import { AudioRecorder } from './AudioRecorder';
 import { AudioManager } from './AudioManager';
 
@@ -227,5 +228,27 @@ export class WebSocketManager {
       }));
     }
     this.stopRecording();
+  }
+
+  interruptSpeaking() {
+    console.log('Interrupt speaking triggered');
+    
+    // Stop current audio playback
+    this.audioManager.stop();
+
+    // Tell the server to cancel the current response
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'response.cancel'
+      }));
+      console.log('Sent response.cancel event');
+    }
+    
+    this.isProcessingResponse = false;
+    
+    // Notify that speaking has stopped
+    if (this.lastLearnieCallback) {
+      this.lastLearnieCallback.onSpeakingChange(false);
+    }
   }
 }
