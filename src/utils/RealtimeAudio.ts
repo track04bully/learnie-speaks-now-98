@@ -5,7 +5,6 @@ export class AudioRecorder {
   private audioContext: AudioContext | null = null;
   private processor: ScriptProcessorNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
-  private ws: WebSocket | null = null;
 
   constructor() {}
 
@@ -15,7 +14,7 @@ export class AudioRecorder {
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 24000,
+          sampleRate: 16000,
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
@@ -24,7 +23,7 @@ export class AudioRecorder {
       });
       
       this.audioContext = new AudioContext({
-        sampleRate: 24000,
+        sampleRate: 16000,
       });
       
       this.source = this.audioContext.createMediaStreamSource(this.stream);
@@ -108,16 +107,13 @@ export class RealtimeChat {
 
   async connect() {
     try {
-      // Initialize audio context
       this.audioContext = new AudioContext({
-        sampleRate: 24000,
+        sampleRate: 16000,
       });
       
-      // Reset state
       this.audioQueue = [];
       this.isPlaying = false;
       
-      // Connect to WebSocket endpoint
       const SUPABASE_PROJECT_REF = "ceofrvinluwymyuizztv";
       this.ws = new WebSocket(`wss://${SUPABASE_PROJECT_REF}.functions.supabase.co/realtime-chat`);
       
@@ -126,7 +122,6 @@ export class RealtimeChat {
         this.isConnected = true;
         this.onConnectionChange(true);
         
-        // Start audio recorder
         if (this.recorder) {
           await this.recorder.start(this.ws!);
           this.isMicrophoneActive = true;
@@ -138,36 +133,28 @@ export class RealtimeChat {
           const data = JSON.parse(event.data);
           console.log("Received WebSocket message:", data.type);
           
-          // Handle audio data
           if (data.type === "response.audio.delta") {
             this.onSpeakingChange(true);
             const audioData = this.decodeBase64ToPCM(data.delta);
             this.addToQueue(audioData);
           }
           
-          // Handle transcript data
           else if (data.type === "response.audio_transcript.delta") {
             this.onTranscriptUpdate(data.delta);
           }
           
-          // Handle audio done event
           else if (data.type === "response.audio.done") {
             setTimeout(() => this.onSpeakingChange(false), 300);
           }
           
-          // Handle speech stopped event
           else if (data.type === "speech_stopped") {
-            // Indicate that Learnie is processing
             this.onProcessing(true);
           }
           
-          // Handle first audio chunk event
           else if (data.type === "response.created") {
-            // First audio chunk will arrive soon
             this.onProcessing(false);
           }
           
-          // Log other events
           else {
             console.log("Other message type:", data.type);
           }
@@ -230,10 +217,8 @@ export class RealtimeChat {
       bytes[i] = binaryString.charCodeAt(i);
     }
     
-    // Convert bytes to Int16Array (PCM format)
     const int16Data = new Int16Array(bytes.buffer);
     
-    // Convert to Float32Array for Web Audio API
     const float32Data = new Float32Array(int16Data.length);
     for (let i = 0; i < int16Data.length; i++) {
       float32Data[i] = int16Data[i] / 32768.0;

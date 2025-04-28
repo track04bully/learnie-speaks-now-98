@@ -33,18 +33,19 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4o-realtime-preview-2024-10-01", // Specify the exact model version
-          modalities: ["text", "audio"], // Enable both text and audio
-          voice: "alloy", // Default voice
+          model: "gpt-4o-realtime-preview-2024-10-01",
+          modalities: ["text", "audio"],
+          voice: "alloy",
           input_audio_format: "pcm16",
           output_audio_format: "pcm16",
           input_audio_transcription: {
             model: "whisper-1",
             language: "en",
-            prompt: "Focus on accurate transcription of speech"
+            prompt: "Focus on accurate transcription of speech",
+            sampling_rate: 16000
           },
           turn_detection: {
-            type: "server_vad", // Use server-side voice activity detection
+            type: "server_vad",
             threshold: 0.5,
             prefix_padding_ms: 300,
             silence_duration_ms: 800,
@@ -107,7 +108,8 @@ serve(async (req) => {
           input_audio_transcription: {
             model: "whisper-1",
             language: "en",
-            prompt: "Focus on accurate transcription of speech"
+            prompt: "Focus on accurate transcription of speech",
+            sampling_rate: 16000
           },
           turn_detection: {
             type: "server_vad",
