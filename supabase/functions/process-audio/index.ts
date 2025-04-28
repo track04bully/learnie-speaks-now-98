@@ -27,19 +27,9 @@ serve(async (req) => {
     // In a real implementation, you would send this to a speech-to-text service
     // and then process the text with an AI service
     
-    // Simulate processing time
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // Return a simple response
+    const message = "I heard you! Right now I'm just a simple demo, but soon I'll be able to answer your questions!"
     
-    // Return a simple response based on the audio length
-    // This is a placeholder - in a full implementation you'd return actual responses
-    
-    let message = "I heard you! However, I'm still learning to understand speech.";
-    
-    // In the future, to implement real processing:
-    // 1. Convert audio to text using Whisper API or similar
-    // 2. Process the text with an LLM like OpenAI
-    // 3. Return the AI response
-
     return new Response(
       JSON.stringify({ 
         message,
