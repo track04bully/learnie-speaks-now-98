@@ -24,16 +24,45 @@ serve(async (req) => {
       throw new Error('OPENAI_API_KEY is not set')
     }
 
-    // Create WebSocket connection
+    // Create WebSocket connection with required subprotocols
     const { socket, response } = Deno.upgradeWebSocket(req)
 
-    // Create connection to OpenAI
+    // Create connection to OpenAI with required subprotocols
     const openAIUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01"
-    const openAISocket = new WebSocket(openAIUrl)
+    const openAISocket = new WebSocket(openAIUrl, [
+      "realtime",
+      `openai-insecure-api-key.${OPENAI_API_KEY}`,
+      "openai-beta.realtime-v1"
+    ])
     
     // Handle opening of OpenAI connection
     openAISocket.onopen = () => {
       console.log("Connected to OpenAI")
+      
+      // Send initial session configuration
+      const sessionConfig = {
+        type: "session.update",
+        session: {
+          modalities: ["text", "audio"],
+          instructions: "You are a helpful AI assistant.",
+          voice: "alloy",
+          input_audio_format: "pcm16",
+          output_audio_format: "pcm16",
+          input_audio_transcription: {
+            model: "whisper-1"
+          },
+          turn_detection: {
+            type: "server_vad",
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 1000
+          },
+          temperature: 0.8,
+          max_response_output_tokens: "inf"
+        }
+      }
+      
+      openAISocket.send(JSON.stringify(sessionConfig))
       
       // Forward messages from client to OpenAI
       socket.onmessage = async ({ data }) => {
@@ -52,7 +81,7 @@ serve(async (req) => {
       }
     }
 
-    // Handle errors
+    // Handle errors with detailed logging
     openAISocket.onerror = (error) => {
       console.error("OpenAI WebSocket error:", error)
       socket.close(1011, "Error connecting to OpenAI")
@@ -63,7 +92,7 @@ serve(async (req) => {
       openAISocket.close(1011, "Client connection error")
     }
 
-    // Clean up
+    // Clean up connections
     socket.onclose = () => {
       console.log("Client disconnected")
       if (openAISocket.readyState === WebSocket.OPEN) {
