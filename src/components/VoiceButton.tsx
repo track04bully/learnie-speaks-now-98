@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -22,18 +21,14 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   const audioContextRef = useRef<AudioContext | null>(null);
   const { toast } = useToast();
 
-  // Check for microphone permission on component mount
   useEffect(() => {
-    checkMicrophonePermission();
+    setIsReady(true);
   }, []);
 
   const checkMicrophonePermission = async () => {
     try {
-      // Just check if we can access the microphone
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setHasMicPermission(true);
-      
-      // Release the stream immediately as we're just checking permission
       stream.getTracks().forEach(track => track.stop());
     } catch (error) {
       console.error('Microphone permission check failed:', error);
@@ -50,7 +45,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         console.log('Silence detected, stopping recording');
         mediaRecorderRef.current.stop();
       }
-    }, 2000); // 2 seconds of silence
+    }, 2000);
   };
 
   const setupVoiceActivityDetection = (stream: MediaStream) => {
@@ -70,7 +65,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       analyzer.getByteFrequencyData(dataArray);
       const average = dataArray.reduce((a, b) => a + b) / bufferLength;
       
-      if (average > 10) { // Adjust this threshold as needed
+      if (average > 10) {
         resetSilenceDetection();
       }
       
@@ -101,7 +96,6 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
     try {
       setIsReady(false);
       
-      // If we haven't checked permission or don't have it, request it
       if (!hasMicPermission) {
         const hasPermission = await requestMicrophonePermission();
         if (!hasPermission) {
@@ -140,7 +134,6 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           onRecordingComplete(audioBlob);
         }
         
-        // Clean up
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
           streamRef.current = null;
@@ -158,7 +151,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         setIsReady(true);
       };
       
-      mediaRecorder.start(100); // Collect data every 100ms
+      mediaRecorder.start(100);
       setIsRecording(true);
       resetSilenceDetection();
       
@@ -174,15 +167,38 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
     }
   };
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (!isRecording && isReady && !disabled) {
-      startRecording();
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            sampleRate: 24000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          } 
+        });
+        
+        setHasMicPermission(true);
+        
+        await startRecording();
+        
+        stream.getTracks().forEach(track => track.stop());
+      } catch (error) {
+        console.error('Error requesting microphone access:', error);
+        toast({
+          title: "Microphone Access Required",
+          description: "Please allow microphone access to talk to Learnie",
+          variant: "destructive"
+        });
+        setHasMicPermission(false);
+      }
     }
   };
 
   return (
     <div className="relative">
-      {/* Background sparkles */}
       <div className="absolute inset-0 -z-10 overflow-hidden">
         {[...Array(6)].map((_, i) => (
           <div
