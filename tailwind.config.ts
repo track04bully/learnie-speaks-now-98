@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,12 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				learnie: {
+					blue: '#62C4FF',
+					purple: '#9B7AFF',
+					pink: '#FF7AE5',
+					yellow: '#FFDA7A',
 				}
 			},
 			borderRadius: {
@@ -84,11 +91,46 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-ring': {
+					'0%': { 
+						transform: 'scale(0.8)',
+						opacity: '0.8'
+					},
+					'70%': { 
+						transform: 'scale(1.3)',
+						opacity: '0'
+					},
+					'100%': { 
+						transform: 'scale(1.3)',
+						opacity: '0'
+					}
+				},
+				'bounce-soft': {
+					'0%, 100%': { 
+						transform: 'translateY(0)',
+						animationTimingFunction: 'cubic-bezier(0.8, 0, 1, 1)'
+					},
+					'50%': { 
+						transform: 'translateY(-10px)',
+						animationTimingFunction: 'cubic-bezier(0, 0, 0.2, 1)'
+					}
+				},
+				'wave': {
+					'0%': { transform: 'scale(0)', opacity: '0.5' },
+					'100%': { transform: 'scale(4)', opacity: '0' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-ring': 'pulse-ring 1.5s cubic-bezier(0.24, 0, 0.38, 1) infinite',
+				'bounce-soft': 'bounce-soft 2s infinite',
+				'wave': 'wave 2s linear infinite'
+			},
+			fontFamily: {
+				'fredoka': ['Fredoka One', 'cursive'],
+				'baloo': ['Baloo 2', 'cursive'],
 			}
 		}
 	},
