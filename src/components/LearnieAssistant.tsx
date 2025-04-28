@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import VoiceButton from './VoiceButton';
 import AudioWaves from './AudioWaves';
@@ -29,7 +28,7 @@ const LearnieAssistant: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4">
+    <div className="flex flex-col items-center justify-center gap-2">
       <div className="w-48 md:w-64">
         <img 
           src="/lovable-uploads/67cfaea7-3e82-4718-a6e1-342a6d724463.png"
@@ -60,4 +59,3 @@ const LearnieAssistant: React.FC = () => {
 };
 
 export default LearnieAssistant;
-
