@@ -3,6 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
 import { useToast } from '@/components/ui/use-toast';
+import { Mic, MicOff } from 'lucide-react';
 
 const VoiceButton: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -20,14 +21,14 @@ const VoiceButton: React.FC = () => {
         await wsManager.startRecording();
         setIsRecording(true);
         toast({
-          title: "Recording started",
+          title: "Listening...",
           description: "Speak into your microphone",
         });
       } else {
         wsManager.stopRecording();
         setIsRecording(false);
         toast({
-          title: "Recording stopped",
+          title: "Stopped listening",
         });
       }
     } catch (error) {
@@ -49,16 +50,26 @@ const VoiceButton: React.FC = () => {
         "flex flex-col items-center justify-center gap-2 p-0 overflow-hidden",
         "hover:scale-105 hover:shadow-[0_0_30px_rgba(107,102,255,0.3)] transition-all duration-300",
         "rounded-[45%_55%_52%_48%_/_48%_45%_55%_52%]",
-        isRecording ? "bg-kinder-red" : "bg-kinder-purple hover:bg-kinder-red",
+        isRecording ? "bg-kinder-red animate-pulse" : "bg-kinder-purple hover:bg-kinder-red",
         "cursor-pointer"
       )}
     >
-      <div className="flex items-center justify-center w-full h-full">
+      <div className="flex items-center justify-center w-full h-full relative">
         <img 
           src="/lovable-uploads/95e3efc8-6cb7-4d38-8114-856ee02055c1.png"
           alt="Learnie character"
           className="w-32 h-32 md:w-40 md:h-40 object-contain"
         />
+        <div className={cn(
+          "absolute top-4 right-4 p-2 rounded-full",
+          isRecording ? "bg-white/20" : "bg-white/10"
+        )}>
+          {isRecording ? (
+            <Mic className="w-6 h-6 text-white animate-pulse" />
+          ) : (
+            <MicOff className="w-6 h-6 text-white/70" />
+          )}
+        </div>
       </div>
     </button>
   );
