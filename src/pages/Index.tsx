@@ -2,7 +2,7 @@
 import React from 'react';
 import LearnieAssistant from '@/components/LearnieAssistant';
 import { Card } from '@/components/ui/card';
-import { Calendar, FileText, Search, LightBulb } from 'lucide-react';
+import { Calendar, FileText, Search, Lightbulb } from 'lucide-react';
 
 const Index = () => {
   return (
@@ -30,7 +30,7 @@ const Index = () => {
             {[
               { title: "Today's Schedule", icon: Calendar, color: "bg-blue-100" },
               { title: "Learning Resources", icon: FileText, color: "bg-purple-100" },
-              { title: "Study Helper", icon: LightBulb, color: "bg-orange-100" },
+              { title: "Study Helper", icon: Lightbulb, color: "bg-orange-100" },
               { title: "Search Topics", icon: Search, color: "bg-pink-100" },
             ].map((item) => (
               <Card 
