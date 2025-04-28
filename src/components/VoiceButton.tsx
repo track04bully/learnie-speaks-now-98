@@ -1,8 +1,8 @@
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Mic, MicOff, Speaker } from 'lucide-react';
 
 interface VoiceButtonProps {
@@ -21,7 +21,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   const { toast } = useToast();
 
   const handleClick = useCallback(async () => {
-    if (isSpeaking) return; // Disable button while speaking
+    // Disable button interaction while speaking
+    if (isSpeaking) return;
 
     try {
       const wsManager = WebSocketManager.getInstance();
@@ -31,7 +32,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       }
 
       if (!isRecording) {
-        await wsManager.startRecording();
+        await wsManager.startRecording(onSpeakingChange);
         onRecordingChange(true);
         toast({
           title: "Listening...",
@@ -52,7 +53,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         variant: "destructive",
       });
     }
-  }, [isRecording, isSpeaking, toast, onRecordingChange]);
+  }, [isRecording, isSpeaking, toast, onRecordingChange, onSpeakingChange]);
 
   return (
     <button
@@ -76,7 +77,9 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           alt="Learnie character"
           className={cn(
             "w-32 h-32 md:w-40 md:h-40 object-contain",
-            isSpeaking && "animate-bounce-soft"
+            isSpeaking ? "animate-bounce-soft" : 
+            isRecording ? "animate-pulse" : 
+            "transition-transform hover:scale-105"
           )}
         />
         <div className={cn(

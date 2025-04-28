@@ -14,7 +14,7 @@ const LearnieAssistant: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center gap-2">      
+    <div className="flex flex-col items-center justify-center gap-4">      
       <div className="relative p-4">
         <VoiceButton 
           isRecording={isRecording} 
@@ -24,9 +24,11 @@ const LearnieAssistant: React.FC = () => {
         />
       </div>
       
-      <AudioWaves isActive={isRecording || isSpeaking} />
+      <AudioWaves 
+        isActive={isRecording || isSpeaking} 
+      />
       
-      <p className="text-lg md:text-xl font-fredoka text-center max-w-md text-kinder-black">
+      <p className="text-lg md:text-xl font-fredoka text-center max-w-md text-kinder-black animate-fade-in">
         {getStatusText()}
       </p>
     </div>
