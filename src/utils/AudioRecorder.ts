@@ -1,4 +1,3 @@
-
 import { SAMPLE_RATE } from './audioConstants';
 
 export class AudioRecorder {
@@ -17,7 +16,7 @@ export class AudioRecorder {
 
   async start() {
     try {
-      // First, try to get audio with the specific sample rate
+      console.log('🎤 Requesting microphone access...');
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: SAMPLE_RATE,
@@ -27,16 +26,16 @@ export class AudioRecorder {
           autoGainControl: true
         }
       });
+      console.log('✅ Microphone access granted');
       
-      // Create audio context with desired sample rate
       this.audioContext = new AudioContext({
         sampleRate: SAMPLE_RATE,
       });
       
-      console.log(`AudioContext sample rate: ${this.audioContext.sampleRate}Hz (target: ${SAMPLE_RATE}Hz)`);
+      console.log(`🎵 AudioContext initialized at ${this.audioContext.sampleRate}Hz`);
       
-      // Load audio worklet processor
       await this.audioContext.audioWorklet.addModule('/audioWorkletProcessor.js');
+      console.log('✅ Audio worklet processor loaded');
       
       this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');
       this.source = this.audioContext.createMediaStreamSource(this.stream);
@@ -44,8 +43,10 @@ export class AudioRecorder {
       // Handle messages from the worklet
       this.workletNode.port.onmessage = (event) => {
         if (event.data.type === 'silence_detected' && this.onSilenceCallback) {
+          console.log('🤫 Silence detected');
           this.onSilenceCallback();
         } else if (event.data.type === 'audio_data') {
+          console.log('🎵 Audio chunk received:', event.data.data.byteLength, 'bytes');
           this.onAudioData(event.data.data);
         }
       };
@@ -53,9 +54,9 @@ export class AudioRecorder {
       this.source.connect(this.workletNode);
       this.workletNode.connect(this.audioContext.destination);
       
-      console.log('Audio recording started');
+      console.log('🎤 Audio recording started successfully');
     } catch (error) {
-      console.error('Error accessing microphone:', error);
+      console.error('❌ Error accessing microphone:', error);
       throw error;
     }
   }
@@ -77,6 +78,6 @@ export class AudioRecorder {
       this.audioContext.close();
       this.audioContext = null;
     }
-    console.log('Audio recording stopped');
+    console.log('🛑 Audio recording stopped');
   }
 }
