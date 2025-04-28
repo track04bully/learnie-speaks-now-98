@@ -9,9 +9,13 @@ const Index = () => {
     <div className="min-h-screen bg-[#FFD95A] p-4">
       {/* Header Section */}
       <div className="container mx-auto mb-12 text-center">
-        <h1 className="text-5xl md:text-6xl font-fredoka text-black mb-8">
-          Classroom Hub
-        </h1>
+        <div className="w-48 md:w-64 mx-auto mb-8">
+          <img 
+            src="/lovable-uploads/a77f0378-31fe-4b39-84d8-6fa0428a792c.png"
+            alt="Learnie"
+            className="w-full h-auto"
+          />
+        </div>
         <div className="max-w-xl mx-auto">
           <LearnieAssistant />
         </div>
