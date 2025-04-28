@@ -6,8 +6,8 @@ import { useToast } from '@/hooks/use-toast';
 import { createClient } from '@supabase/supabase-js';
 import { AudioRecorder, encodeAudioForAPI } from '@/utils/RealtimeAudio';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = 'https://ceofrvinluwymyuizztv.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNlb2ZydmlubHV3eW15dWl6enR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU4MjAxMzQsImV4cCI6MjA2MTM5NjEzNH0.XjtcGkSeRUyFFQhnFgduCnqUcz_pM0j7W6d-tDG-7lY';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const LearnieAssistant: React.FC = () => {
