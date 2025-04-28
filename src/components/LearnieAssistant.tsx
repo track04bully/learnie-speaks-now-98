@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import AudioWaves from './AudioWaves';
 import { useToast } from '@/hooks/use-toast';
@@ -10,6 +9,7 @@ const LearnieAssistant: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [micPermission, setMicPermission] = useState<boolean | null>(null);
   const [transcript, setTranscript] = useState<string>("");
   const [lastError, setLastError] = useState<string | null>(null);
@@ -38,9 +38,14 @@ const LearnieAssistant: React.FC = () => {
       (speaking) => {
         setIsSpeaking(speaking);
         if (!speaking) {
+          setIsProcessing(false);
           // Clear transcript when AI stops speaking
           setTimeout(() => setTranscript(""), 2000);
         }
+      },
+      // Processing status handler
+      (processing) => {
+        setIsProcessing(processing);
       }
     );
     
@@ -87,11 +92,6 @@ const LearnieAssistant: React.FC = () => {
   };
 
   const startConversation = async () => {
-    if (!micPermission) {
-      await requestMicrophoneAccess();
-      if (!micPermission) return;
-    }
-    
     try {
       setIsConnecting(true);
       setLastError(null);
@@ -191,9 +191,11 @@ const LearnieAssistant: React.FC = () => {
         {isConnecting 
           ? "Connecting to Learnie..." 
           : isConnected
-            ? isSpeaking
-              ? "Learnie is speaking..."
-              : "Learnie is listening! What would you like to know?"
+            ? isProcessing
+              ? "Learnie is thinking..."
+              : isSpeaking
+                ? "Learnie is speaking..."
+                : "Learnie is listening! What would you like to know?"
             : "Tap the button to talk to Learnie!"}
       </p>
 

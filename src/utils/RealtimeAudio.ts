@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export class AudioRecorder {
@@ -101,7 +100,8 @@ export class RealtimeChat {
   constructor(
     private onConnectionChange: (connected: boolean) => void,
     private onTranscriptUpdate: (text: string) => void,
-    private onSpeakingChange: (speaking: boolean) => void
+    private onSpeakingChange: (speaking: boolean) => void,
+    private onProcessing: (processing: boolean) => void
   ) {
     this.recorder = new AudioRecorder();
   }
@@ -153,6 +153,18 @@ export class RealtimeChat {
           // Handle audio done event
           else if (data.type === "response.audio.done") {
             setTimeout(() => this.onSpeakingChange(false), 300);
+          }
+          
+          // Handle speech stopped event
+          else if (data.type === "speech_stopped") {
+            // Indicate that Learnie is processing
+            this.onProcessing(true);
+          }
+          
+          // Handle first audio chunk event
+          else if (data.type === "response.created") {
+            // First audio chunk will arrive soon
+            this.onProcessing(false);
           }
           
           // Log other events
