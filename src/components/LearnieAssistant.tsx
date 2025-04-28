@@ -5,10 +5,11 @@ import AudioWaves from './AudioWaves';
 import { useToast } from '@/hooks/use-toast';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-);
+// Use import.meta.env instead of process.env for Vite projects
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const LearnieAssistant: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
