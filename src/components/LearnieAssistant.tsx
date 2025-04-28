@@ -67,7 +67,6 @@ const LearnieAssistant: React.FC = () => {
         onClick={() => !isRecording && !isProcessing && handleRecordingStart()}
       >
         <VoiceButton 
-          maxRecordingTime={8000} 
           onRecordingComplete={handleRecordingComplete} 
           disabled={isProcessing}
         />
