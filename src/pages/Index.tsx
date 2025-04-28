@@ -2,45 +2,51 @@
 import React from 'react';
 import LearnieAssistant from '@/components/LearnieAssistant';
 import { Card } from '@/components/ui/card';
-import { Calendar, FileText, Search, Lightbulb } from 'lucide-react';
+import { Computer, FileText, Palette, Pencil } from 'lucide-react';
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-kinder-green p-4">
+    <div className="min-h-screen bg-[#FFD95A] p-4">
       {/* Header Section */}
-      <div className="container mx-auto mb-8 text-center">
-        <div className="inline-block bg-kinder-yellow px-8 py-3 rounded-full">
-          <h1 className="text-4xl md:text-5xl font-fredoka text-kinder-red">CLASSROOM</h1>
+      <div className="container mx-auto mb-12 text-center">
+        <h1 className="text-5xl md:text-6xl font-fredoka text-black mb-8">
+          Classroom Hub
+        </h1>
+        <div className="max-w-xl mx-auto">
+          <img 
+            src="/lovable-uploads/2445b60c-1540-4884-86fe-135563dcd202.png"
+            alt="Educational tools"
+            className="w-full h-auto"
+          />
         </div>
-        <div className="inline-block bg-white px-6 py-2 rounded-full mt-2">
-          <h2 className="text-2xl md:text-3xl font-fredoka text-kinder-black">HUB</h2>
+        <div className="mt-6 bg-white rounded-full py-3 px-6 inline-block shadow-md">
+          <input
+            type="text"
+            placeholder="Add your class grade level or name here"
+            className="text-center w-full bg-transparent border-none outline-none text-lg font-baloo placeholder:text-gray-500"
+          />
         </div>
       </div>
 
       {/* Main Content */}
       <div className="container mx-auto">
         <div className="max-w-4xl mx-auto">
-          {/* Learnie Section */}
-          <div className="bg-white/90 backdrop-blur rounded-3xl p-6 mb-8 shadow-lg">
-            <LearnieAssistant />
-          </div>
-
           {/* Navigation Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
-              { title: "Today's Schedule", icon: Calendar, color: "bg-blue-100" },
-              { title: "Learning Resources", icon: FileText, color: "bg-purple-100" },
-              { title: "Study Helper", icon: Lightbulb, color: "bg-orange-100" },
-              { title: "Search Topics", icon: Search, color: "bg-pink-100" },
+              { title: "Digital Learning", icon: Computer, color: "bg-blue-100" },
+              { title: "Assignments", icon: FileText, color: "bg-purple-100" },
+              { title: "Creative Corner", icon: Palette, color: "bg-orange-100" },
+              { title: "Study Notes", icon: Pencil, color: "bg-pink-100" },
             ].map((item) => (
               <Card 
                 key={item.title}
-                className={`${item.color} hover:scale-105 transition-transform duration-200 cursor-pointer p-4 flex items-center gap-3`}
+                className={`${item.color} hover:scale-105 transition-transform duration-200 cursor-pointer p-6 flex items-center gap-4`}
               >
-                <div className="bg-white p-2 rounded-lg">
-                  <item.icon className="w-6 h-6" />
+                <div className="bg-white p-3 rounded-lg">
+                  <item.icon className="w-8 h-8" />
                 </div>
-                <h3 className="font-fredoka text-lg">{item.title}</h3>
+                <h3 className="font-fredoka text-xl">{item.title}</h3>
               </Card>
             ))}
           </div>
