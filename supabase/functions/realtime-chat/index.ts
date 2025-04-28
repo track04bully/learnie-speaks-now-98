@@ -29,6 +29,34 @@ Your goal is to spark curiosity and a love of learning!
 // Context storage for persistent memory across turns
 const sessionContexts = new Map();
 
+// Function to check content using OpenAI's moderation API
+async function moderateContent(text: string): Promise<boolean> {
+  try {
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) throw new Error('OpenAI API key not found');
+
+    const response = await fetch('https://api.openai.com/v1/moderations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ input: text }),
+    });
+
+    if (!response.ok) {
+      console.error('Moderation API error:', await response.text());
+      return false; // Allow content if moderation API fails
+    }
+
+    const data = await response.json();
+    return !data.results[0].flagged;
+  } catch (error) {
+    console.error('Content moderation error:', error);
+    return false; // Allow content if moderation fails
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -221,13 +249,26 @@ serve(async (req) => {
         });
     };
 
-    // Forward messages from client to OpenAI
-    socket.onmessage = (event) => {
+    // Forward messages from client to OpenAI with content moderation
+    socket.onmessage = async (event) => {
       if (openAISocket.readyState === WebSocket.OPEN) {
         try {
           const message = JSON.parse(event.data);
           
-          // For transcript updates, store in session memory
+          // Check for text content that needs moderation
+          if (message.type === "input_audio_transcript.update" && message.transcript) {
+            const isAppropriate = await moderateContent(message.transcript);
+            if (!isAppropriate) {
+              console.log("Content flagged as inappropriate:", message.transcript);
+              socket.send(JSON.stringify({
+                type: "moderation.violation",
+                message: "I'm sorry, but I cannot process that request as it may contain inappropriate content."
+              }));
+              return;
+            }
+          }
+          
+          // Store transcripts in session memory if appropriate
           if (message.type === "input_audio_transcript.update" && sessionId) {
             const context = sessionContexts.get(sessionId);
             if (context) {
@@ -238,7 +279,6 @@ serve(async (req) => {
               });
               context.lastActivity = Date.now();
               
-              // Limit history size to prevent excessive memory usage
               if (context.messageHistory.length > 20) {
                 context.messageHistory.shift();
               }
@@ -254,34 +294,44 @@ serve(async (req) => {
       }
     };
 
-    // Forward transcription results from OpenAI to client and store assistant responses
-    openAISocket.onmessage = (event) => {
+    // Forward messages from OpenAI to client with content moderation
+    openAISocket.onmessage = async (event) => {
       if (socket.readyState === WebSocket.OPEN) {
         try {
           const data = JSON.parse(event.data);
           
-          // Store assistant responses in session memory
-          if (data.type === "response.audio_transcript.delta" && sessionId) {
-            const context = sessionContexts.get(sessionId);
-            if (context) {
-              // Check if we already have an in-progress assistant message
-              let lastMessage = context.messageHistory.length > 0 ? 
-                context.messageHistory[context.messageHistory.length - 1] : null;
+          // Moderate AI responses
+          if (data.type === "response.audio_transcript.delta") {
+            const isAppropriate = await moderateContent(data.delta || "");
+            if (!isAppropriate) {
+              console.log("AI response flagged as inappropriate:", data.delta);
+              socket.send(JSON.stringify({
+                type: "moderation.violation",
+                message: "I apologize, but I need to rephrase my response to ensure it's appropriate."
+              }));
+              return;
+            }
+            
+            // Store assistant responses in session memory
+            if (sessionId) {
+              const context = sessionContexts.get(sessionId);
+              if (context) {
+                let lastMessage = context.messageHistory.length > 0 ? 
+                  context.messageHistory[context.messageHistory.length - 1] : null;
+                  
+                if (!lastMessage || lastMessage.role !== "assistant") {
+                  context.messageHistory.push({
+                    role: "assistant",
+                    content: data.delta || "",
+                    timestamp: Date.now()
+                  });
+                } else {
+                  lastMessage.content += data.delta || "";
+                  lastMessage.timestamp = Date.now();
+                }
                 
-              if (!lastMessage || lastMessage.role !== "assistant") {
-                // Start a new assistant message
-                context.messageHistory.push({
-                  role: "assistant",
-                  content: data.delta || "",
-                  timestamp: Date.now()
-                });
-              } else {
-                // Append to existing assistant message
-                lastMessage.content += data.delta || "";
-                lastMessage.timestamp = Date.now();
+                context.lastActivity = Date.now();
               }
-              
-              context.lastActivity = Date.now();
             }
           }
           
