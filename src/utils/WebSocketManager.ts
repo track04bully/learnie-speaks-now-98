@@ -14,6 +14,7 @@ export class WebSocketManager {
   private audioManager: AudioManager;
   private autoStopTimeout: number | null = null;
   private lastLearnieCallback: LearnieCallback | null = null;
+  private isProcessingResponse: boolean = false;
 
   private constructor() {
     this.audioManager = new AudioManager((isSpeaking) => {
@@ -67,11 +68,24 @@ export class WebSocketManager {
       switch (data.type) {
         case 'response.audio.delta':
           if (data.delta) {
+            if (!this.isProcessingResponse) {
+              this.isProcessingResponse = true;
+              if (this.lastLearnieCallback) {
+                this.lastLearnieCallback.onSpeakingChange(true);
+              }
+            }
             this.audioManager.addAudioChunk(data.delta);
           }
           break;
-        case 'response.audio_transcript.delta':
-          // Handle transcription updates
+        case 'response.done':
+          console.log("Response completed");
+          this.isProcessingResponse = false;
+          // Give a small delay before setting speaking to false to ensure all audio is played
+          setTimeout(() => {
+            if (this.lastLearnieCallback && !this.isProcessingResponse) {
+              this.lastLearnieCallback.onSpeakingChange(false);
+            }
+          }, 500);
           break;
         case 'session.created':
           console.log("Session created successfully");
@@ -134,6 +148,8 @@ export class WebSocketManager {
       onSpeakingChange: onSpeakingChange || (() => {}),
     };
     
+    this.isProcessingResponse = false;
+    
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect();
     }
@@ -150,6 +166,7 @@ export class WebSocketManager {
   }
 
   disconnect() {
+    this.isProcessingResponse = false;
     if (this.ws) {
       this.ws.close();
       this.ws = null;
