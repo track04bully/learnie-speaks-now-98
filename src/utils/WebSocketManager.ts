@@ -1,6 +1,4 @@
 
-import { supabase } from "@/integrations/supabase/client";
-
 export class WebSocketManager {
   private static instance: WebSocketManager;
   private ws: WebSocket | null = null;
