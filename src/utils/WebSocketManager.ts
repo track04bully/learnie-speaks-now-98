@@ -101,7 +101,7 @@ export class WebSocketManager {
   private handleAudioData(audioData: Float32Array) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-    // Convert Float32Array to base64 string for WebSocket transmission
+    // Convert Float32Array to Int16Array (16-bit PCM)
     const int16Array = new Int16Array(audioData.length);
     for (let i = 0; i < audioData.length; i++) {
       const s = Math.max(-1, Math.min(1, audioData[i]));
