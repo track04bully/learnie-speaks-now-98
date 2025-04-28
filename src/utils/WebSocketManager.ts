@@ -1,10 +1,16 @@
+import { AudioRecorder } from './AudioRecorder';
 
 export class WebSocketManager {
   private static instance: WebSocketManager;
   private ws: WebSocket | null = null;
   private projectId = "ceofrvinluwymyuizztv";
+  private audioRecorder: AudioRecorder | null = null;
 
-  private constructor() {}
+  private constructor() {
+    this.audioRecorder = new AudioRecorder((audioData) => {
+      this.handleAudioData(audioData);
+    });
+  }
 
   static getInstance() {
     if (!WebSocketManager.instance) {
@@ -89,6 +95,52 @@ export class WebSocketManager {
 
     console.log("Sending session config:", sessionConfig);
     this.ws.send(JSON.stringify(sessionConfig));
+  }
+
+  private handleAudioData(audioData: Float32Array) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    // Convert Float32Array to base64 string for WebSocket transmission
+    const int16Array = new Int16Array(audioData.length);
+    for (let i = 0; i < audioData.length; i++) {
+      const s = Math.max(-1, Math.min(1, audioData[i]));
+      int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    
+    const uint8Array = new Uint8Array(int16Array.buffer);
+    let binary = '';
+    const chunkSize = 0x8000;
+    
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+      binary += String.fromCharCode.apply(null, Array.from(chunk));
+    }
+    
+    const base64Audio = btoa(binary);
+    
+    // Send audio data to the server
+    this.ws.send(JSON.stringify({
+      type: 'input_audio_buffer.append',
+      audio: base64Audio
+    }));
+  }
+
+  async startRecording() {
+    if (!this.audioRecorder) return;
+    
+    if (!this.ws?.readyState === WebSocket.OPEN) {
+      await this.connect();
+    }
+    
+    await this.audioRecorder.start();
+    console.log('Recording started');
+  }
+
+  stopRecording() {
+    if (this.audioRecorder) {
+      this.audioRecorder.stop();
+      console.log('Recording stopped');
+    }
   }
 
   disconnect() {

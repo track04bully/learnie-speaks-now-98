@@ -1,9 +1,13 @@
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
+import { useToast } from '@/components/ui/use-toast';
 
 const VoiceButton: React.FC = () => {
+  const [isRecording, setIsRecording] = useState(false);
+  const { toast } = useToast();
+
   const handleClick = useCallback(async () => {
     try {
       const wsManager = WebSocketManager.getInstance();
@@ -11,13 +15,30 @@ const VoiceButton: React.FC = () => {
       if (!wsManager.isConnected()) {
         await wsManager.connect();
       }
-      
-      // Additional audio handling will be added here
-      console.log("WebSocket connection established");
+
+      if (!isRecording) {
+        await wsManager.startRecording();
+        setIsRecording(true);
+        toast({
+          title: "Recording started",
+          description: "Speak into your microphone",
+        });
+      } else {
+        wsManager.stopRecording();
+        setIsRecording(false);
+        toast({
+          title: "Recording stopped",
+        });
+      }
     } catch (error) {
-      console.error("Error connecting to WebSocket:", error);
+      console.error("Error:", error);
+      toast({
+        title: "Error",
+        description: "Could not access microphone. Please make sure it's connected and allowed.",
+        variant: "destructive",
+      });
     }
-  }, []);
+  }, [isRecording, toast]);
 
   return (
     <button
@@ -28,7 +49,8 @@ const VoiceButton: React.FC = () => {
         "flex flex-col items-center justify-center gap-2 p-0 overflow-hidden",
         "hover:scale-105 hover:shadow-[0_0_30px_rgba(107,102,255,0.3)] transition-all duration-300",
         "rounded-[45%_55%_52%_48%_/_48%_45%_55%_52%]",
-        "bg-kinder-purple hover:bg-kinder-red cursor-pointer"
+        isRecording ? "bg-kinder-red" : "bg-kinder-purple hover:bg-kinder-red",
+        "cursor-pointer"
       )}
     >
       <div className="flex items-center justify-center w-full h-full">
