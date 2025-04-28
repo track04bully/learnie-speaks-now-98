@@ -121,7 +121,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           isRecording && "scale-110 transition-transform"
         )}>
           <img 
-            src="/lovable-uploads/636fc3ff-f504-4d44-9a6b-bb1bf0a7dba1.png"
+            src="/lovable-uploads/95e3efc8-6cb7-4d38-8114-856ee02055c1.png"
             alt="Learnie character"
             className="w-32 h-32 md:w-40 md:h-40 object-contain"
           />
