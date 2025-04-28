@@ -93,6 +93,7 @@ serve(async (req) => {
                 const jsonData = JSON.parse(data)
                 lastSentEvent = jsonData
                 console.log("Sending JSON to OpenAI:", jsonData)
+                openAISocket.send(data)
               } catch (e) {
                 console.error("Invalid JSON received from client:", e)
                 socket.send(JSON.stringify({
@@ -101,8 +102,14 @@ serve(async (req) => {
                 }))
                 return
               }
+            } else {
+              // For binary data like ArrayBuffer, it should be sent as JSON with input_audio_buffer.append
+              console.error("Received non-JSON data from client - this is not supported")
+              socket.send(JSON.stringify({
+                type: "error",
+                message: "Only JSON formatted messages are supported"
+              }))
             }
-            openAISocket.send(data)
           }
         } catch (error) {
           console.error("Error processing message from client:", error)

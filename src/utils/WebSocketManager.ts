@@ -1,3 +1,4 @@
+
 import { AudioRecorder } from './AudioRecorder';
 import { AudioManager } from './AudioManager';
 
@@ -22,6 +23,7 @@ export class WebSocketManager {
   private sessionTimeoutDuration: number = 5 * 60 * 1000; // 5 minutes of inactivity
   private sessionResponseTimeout: NodeJS.Timeout | null = null;
   private lastSentEvent: any = null;
+  private audioBufferCreated: boolean = false;
 
   private constructor() {
     this.audioManager = new AudioManager((isSpeaking) => {
@@ -148,6 +150,7 @@ export class WebSocketManager {
           break;
         case 'session.created':
           console.log("Session created successfully");
+          this.audioBufferCreated = false; // Reset buffer created flag when a new session starts
           break;
         case 'session.updated':
           console.log("Session updated successfully");
@@ -186,9 +189,30 @@ export class WebSocketManager {
     // Reset inactivity timeout since user is active
     this.resetInactivityTimeout();
     
-    // Send raw PCM data directly through WebSocket
-    this.ws.send(audioData);
-    console.log('Sent audio chunk:', audioData.byteLength, 'bytes');
+    // Convert ArrayBuffer to base64 for JSON transmission
+    const base64Audio = this.arrayBufferToBase64(audioData);
+    
+    // Send JSON formatted message according to OpenAI's WebSocket API spec
+    const message = {
+      type: "input_audio_buffer.append",
+      audio: base64Audio
+    };
+    
+    this.sendJsonEvent(message);
+    console.log('Sent audio chunk with proper JSON formatting:', audioData.byteLength, 'bytes');
+  }
+  
+  // Helper method to convert ArrayBuffer to base64
+  private arrayBufferToBase64(buffer: ArrayBuffer): string {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    
+    return btoa(binary);
   }
 
   private resetInactivityTimeout() {
@@ -260,6 +284,7 @@ export class WebSocketManager {
     };
     
     this.isProcessingResponse = false;
+    this.audioBufferCreated = false; // Reset flag when starting a new recording
     
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect();
@@ -301,6 +326,7 @@ export class WebSocketManager {
     console.log('Closing WebSocket connection and cleaning up resources');
     this.clearTimeouts();
     this.isProcessingResponse = false;
+    this.audioBufferCreated = false;
     
     if (this.ws) {
       this.ws.close();
