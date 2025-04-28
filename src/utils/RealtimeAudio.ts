@@ -5,6 +5,7 @@ export class AudioRecorder {
   private audioContext: AudioContext | null = null;
   private processor: ScriptProcessorNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
+  private ws: WebSocket | null = null;
 
   constructor() {}
 
@@ -48,6 +49,12 @@ export class AudioRecorder {
   }
 
   stop() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'audio_end'
+      }));
+    }
+
     if (this.source) {
       this.source.disconnect();
       this.source = null;
