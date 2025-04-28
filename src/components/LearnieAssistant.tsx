@@ -3,19 +3,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import VoiceButton from './VoiceButton';
 import AudioWaves from './AudioWaves';
 import { useToast } from '@/hooks/use-toast';
-import { createClient } from '@supabase/supabase-js';
 import { AudioRecorder, encodeAudioForAPI } from '@/utils/RealtimeAudio';
-
-// Fix the Supabase URL by ensuring it has the proper format with https://
-const supabaseUrl = 'https://ceofrvinluwymyuizztv.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNlb2ZydmlubHV3eW15dWl6enR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU4MjAxMzQsImV4cCI6MjA2MTM5NjEzNH0.XjtcGkSeRUyFFQhnFgduCnqUcz_pM0j7W6d-tDG-7lY';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const LearnieAssistant: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [sessionStarted, setSessionStarted] = useState(false);
   const webSocketRef = useRef<WebSocket | null>(null);
   const recorderRef = useRef<AudioRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -25,21 +19,28 @@ const LearnieAssistant: React.FC = () => {
     audioContextRef.current = new AudioContext({
       sampleRate: 24000,
     });
+    
     return () => {
       audioContextRef.current?.close();
+      if (webSocketRef.current) {
+        webSocketRef.current.close();
+      }
+      if (recorderRef.current) {
+        recorderRef.current.stop();
+      }
     };
   }, []);
 
   const playAudioChunk = async (base64Audio: string) => {
     if (!audioContextRef.current) return;
     
-    const binaryString = atob(base64Audio);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    
     try {
+      const binaryString = atob(base64Audio);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
       const audioBuffer = await audioContextRef.current.decodeAudioData(bytes.buffer);
       const source = audioContextRef.current.createBufferSource();
       source.buffer = audioBuffer;
@@ -49,13 +50,13 @@ const LearnieAssistant: React.FC = () => {
       source.onended = () => setIsSpeaking(false);
     } catch (error) {
       console.error('Error playing audio chunk:', error);
+      setIsSpeaking(false);
     }
   };
 
   const connectToWebSocket = async () => {
     try {
       setIsConnecting(true);
-      // Fix: Use a direct WebSocket URL with proper formatting
       const wsUrl = `wss://ceofrvinluwymyuizztv.functions.supabase.co/realtime-chat`;
       console.log('Connecting to WebSocket:', wsUrl);
       
@@ -65,36 +66,13 @@ const LearnieAssistant: React.FC = () => {
         console.log('WebSocket connected');
         setIsConnecting(false);
         webSocketRef.current = ws;
-
-        // Send initial session configuration
-        ws.send(JSON.stringify({
-          event_id: "event_123",
-          type: "session.update",
-          session: {
-            modalities: ["text", "audio"],
-            instructions: "You are Learnie, a friendly and knowledgeable AI assistant. Your voice is warm and approachable. Keep your responses concise and helpful.",
-            voice: "alloy",
-            input_audio_format: "pcm16",
-            output_audio_format: "pcm16",
-            input_audio_transcription: {
-              model: "whisper-1"
-            },
-            turn_detection: {
-              type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 1000
-            },
-            temperature: 0.8,
-            max_response_output_tokens: "inf"
-          }
-        }));
       };
 
       ws.onclose = (event) => {
         console.log('WebSocket closed', event.code, event.reason);
         setIsConnecting(false);
         setIsRecording(false);
+        setSessionStarted(false);
         webSocketRef.current = null;
       };
 
@@ -107,6 +85,7 @@ const LearnieAssistant: React.FC = () => {
         });
         setIsConnecting(false);
         setIsRecording(false);
+        setSessionStarted(false);
       };
 
       ws.onmessage = (event) => {
@@ -114,7 +93,10 @@ const LearnieAssistant: React.FC = () => {
           const data = JSON.parse(event.data);
           console.log('Received message:', data);
           
-          if (data.type === 'response.audio_transcript.delta') {
+          if (data.type === 'session.created') {
+            console.log('Session created, sending session configuration');
+            sendSessionConfig(ws);
+          } else if (data.type === 'response.audio_transcript.delta') {
             console.log('Transcript:', data.delta);
           } else if (data.type === 'response.audio.delta') {
             playAudioChunk(data.delta);
@@ -125,7 +107,6 @@ const LearnieAssistant: React.FC = () => {
           console.error('Error parsing message:', error);
         }
       };
-
     } catch (error) {
       console.error('Error connecting to WebSocket:', error);
       toast({
@@ -137,10 +118,47 @@ const LearnieAssistant: React.FC = () => {
     }
   };
 
+  const sendSessionConfig = (ws: WebSocket) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        event_id: "event_123",
+        type: "session.update",
+        session: {
+          modalities: ["text", "audio"],
+          instructions: "You are Learnie, a friendly and knowledgeable AI assistant. Your voice is warm and approachable. Keep your responses concise and helpful.",
+          voice: "alloy",
+          input_audio_format: "pcm16",
+          output_audio_format: "pcm16",
+          input_audio_transcription: {
+            model: "whisper-1"
+          },
+          turn_detection: {
+            type: "server_vad",
+            threshold: 0.5,
+            prefix_padding_ms: 300,
+            silence_duration_ms: 1000
+          },
+          temperature: 0.8,
+          max_response_output_tokens: "inf"
+        }
+      }));
+      setSessionStarted(true);
+    }
+  };
+
   const startRecording = async () => {
     try {
       if (!webSocketRef.current) {
         await connectToWebSocket();
+        return; // Wait for connection to establish first
+      }
+
+      if (!sessionStarted) {
+        toast({
+          title: "Initializing",
+          description: "Please wait for session to initialize",
+        });
+        return;
       }
 
       recorderRef.current = new AudioRecorder((audioData) => {
@@ -172,20 +190,10 @@ const LearnieAssistant: React.FC = () => {
     setIsRecording(false);
   };
 
-  useEffect(() => {
-    return () => {
-      if (webSocketRef.current) {
-        webSocketRef.current.close();
-      }
-      if (recorderRef.current) {
-        recorderRef.current.stop();
-      }
-    };
-  }, []);
-
-  // Handle button click directly here instead of making the parent div clickable
   const handleButtonClick = () => {
-    if (!isRecording && !isConnecting) {
+    if (isRecording) {
+      stopRecording();
+    } else if (!isConnecting) {
       startRecording();
     }
   };
@@ -205,8 +213,8 @@ const LearnieAssistant: React.FC = () => {
       <p className="text-lg md:text-xl font-fredoka text-center max-w-md text-kinder-black">
         {isConnecting 
           ? "Connecting..." 
-          : isProcessing 
-            ? "Learnie is thinking..." 
+          : !sessionStarted && webSocketRef.current
+            ? "Initializing..." 
             : isRecording 
               ? "Learnie is listening! What would you like to know?" 
               : isSpeaking

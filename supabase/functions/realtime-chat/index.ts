@@ -12,7 +12,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-  
+
   const { headers } = req;
   const upgradeHeader = headers.get("upgrade") || "";
 
@@ -42,28 +42,10 @@ serve(async (req) => {
     openAISocket.onopen = () => {
       console.log("Connected to OpenAI Realtime API");
       
-      // Send initial session configuration
+      // The authorization is sent with the initial request
       openAISocket.send(JSON.stringify({
-        "event_id": "event_123",
-        "type": "session.update",
-        "session": {
-          "modalities": ["text", "audio"],
-          "instructions": "You are Learnie, a friendly and knowledgeable AI assistant. Your voice is warm and approachable. Keep your responses concise and helpful.",
-          "voice": "alloy",
-          "input_audio_format": "pcm16",
-          "output_audio_format": "pcm16",
-          "input_audio_transcription": {
-            "model": "whisper-1"
-          },
-          "turn_detection": {
-            "type": "server_vad",
-            "threshold": 0.5,
-            "prefix_padding_ms": 300,
-            "silence_duration_ms": 1000
-          },
-          "temperature": 0.8,
-          "max_response_output_tokens": "inf"
-        }   
+        type: "authorization",
+        authorization: `Bearer ${OPENAI_API_KEY}`
       }));
     };
 
