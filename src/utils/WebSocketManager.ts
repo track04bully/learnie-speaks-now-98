@@ -1,3 +1,4 @@
+
 import { AudioRecorder } from './AudioRecorder';
 
 export class WebSocketManager {
@@ -128,7 +129,7 @@ export class WebSocketManager {
   async startRecording() {
     if (!this.audioRecorder) return;
     
-    if (!this.ws?.readyState === WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect();
     }
     
