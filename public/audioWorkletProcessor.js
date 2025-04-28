@@ -8,11 +8,20 @@ class PCMAudioProcessor extends AudioWorkletProcessor {
     super();
     this.lastAudioTime = currentTime;
     this.silenceStartTime = null;
+    this.processingCount = 0;
+    
+    console.log(`AudioWorklet initialized with sampleRate: ${sampleRate}`);
     
     // Verify that we're using the correct sample rate
     if (sampleRate !== SAMPLE_RATE) {
       console.warn(`AudioWorklet running at ${sampleRate}Hz instead of expected ${SAMPLE_RATE}Hz. This may cause audio issues.`);
     }
+    
+    // Send a startup message
+    this.port.postMessage({
+      type: 'status',
+      message: `AudioWorklet started with sampleRate=${sampleRate}`
+    });
   }
 
   detectSilence(input) {
@@ -23,7 +32,17 @@ class PCMAudioProcessor extends AudioWorkletProcessor {
 
   process(inputs, outputs, parameters) {
     const input = inputs[0][0];
-    if (!input) return true;
+    if (!input) {
+      if (this.processingCount % 100 === 0) {
+        console.log('No input data received in AudioWorklet');
+      }
+      return true;
+    }
+
+    this.processingCount++;
+    if (this.processingCount % 100 === 0) {
+      console.log(`Processed ${this.processingCount} audio chunks`);
+    }
 
     const isSilent = this.detectSilence(input);
     
@@ -33,6 +52,7 @@ class PCMAudioProcessor extends AudioWorkletProcessor {
       } else if (currentTime - this.silenceStartTime > 2) {
         // 2 seconds of silence detected
         this.port.postMessage({ type: 'silence_detected' });
+        console.log('Silence detected in AudioWorklet, notifying main thread');
         return true;
       }
     } else {

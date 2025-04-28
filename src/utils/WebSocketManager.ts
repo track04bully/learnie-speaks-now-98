@@ -1,3 +1,4 @@
+
 import { AudioRecorder } from './AudioRecorder';
 import { AudioManager } from './AudioManager';
 
@@ -23,6 +24,7 @@ export class WebSocketManager {
   private sessionResponseTimeout: NodeJS.Timeout | null = null;
   private lastSentEvent: any = null;
   private audioBufferCreated: boolean = false;
+  private connectionStartTime: number = 0;
 
   private constructor() {
     this.audioManager = new AudioManager((isSpeaking) => {
@@ -55,10 +57,12 @@ export class WebSocketManager {
       }
 
       const wsUrl = `wss://${this.projectId}.functions.supabase.co/functions/v1/realtime-chat`;
+      console.log("Connecting to WebSocket:", wsUrl);
+      this.connectionStartTime = Date.now();
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log("WebSocket connected");
+        console.log("WebSocket connected in", Date.now() - this.connectionStartTime, "ms");
         this.reconnectAttempts = 0;
         
         // Setup response timeout for session creation
@@ -77,7 +81,13 @@ export class WebSocketManager {
       };
 
       this.ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
+        const errorTime = Date.now() - this.connectionStartTime;
+        console.error(`WebSocket error after ${errorTime}ms:`, error);
+        console.error("Connection details:", {
+          url: wsUrl,
+          readyState: this.ws?.readyState,
+          reconnectAttempts: this.reconnectAttempts
+        });
         
         // Log the last sent event that might have caused the error
         if (this.lastSentEvent) {
@@ -95,8 +105,8 @@ export class WebSocketManager {
     });
   }
 
-  private handleWebSocketClose() {
-    console.log("WebSocket closed");
+  private handleWebSocketClose(event: CloseEvent) {
+    console.log("WebSocket closed with code:", event.code, "reason:", event.reason);
     this.clearTimeouts();
     
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
@@ -195,9 +205,15 @@ export class WebSocketManager {
         format: "pcm16",
         name: "mic"
       };
-      this.sendJsonEvent(createMessage);
-      console.log('Created audio buffer with proper format');
-      this.audioBufferCreated = true;
+      
+      const success = this.sendJsonEvent(createMessage);
+      if (success) {
+        console.log('Created audio buffer with proper format');
+        this.audioBufferCreated = true;
+      } else {
+        console.error('Failed to create audio buffer');
+        return;
+      }
     }
     
     // Convert ArrayBuffer to base64 for JSON transmission
