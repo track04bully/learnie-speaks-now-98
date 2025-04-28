@@ -1,7 +1,9 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+// Define all possible phases
 type Phase = 'idle' | 'connecting' | 'listen' | 'speak';
 
 export const useLearnieVoice = () => {
