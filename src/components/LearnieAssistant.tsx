@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import VoiceButton from './VoiceButton';
 import AudioWaves from './AudioWaves';
@@ -29,16 +30,16 @@ const LearnieAssistant: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center gap-2">
-      <div className="w-48 md:w-64">
+      <div className="w-32 md:w-40">
         <img 
           src="/lovable-uploads/67cfaea7-3e82-4718-a6e1-342a6d724463.png"
           alt="Learnie"
-          className="w-full h-auto"
+          className="w-full h-auto drop-shadow-lg"
         />
       </div>
       
       <div 
-        className="relative p-4 md:p-6"
+        className="relative p-4"
         onClick={() => !isRecording && handleRecordingStart()}
       >
         <VoiceButton 
@@ -49,7 +50,7 @@ const LearnieAssistant: React.FC = () => {
       
       <AudioWaves isActive={isRecording} />
       
-      <p className="text-lg md:text-xl font-baloo text-center max-w-md text-kinder-black">
+      <p className="text-lg md:text-xl font-fredoka text-center max-w-md text-kinder-black">
         {isRecording 
           ? "Learnie is listening! What would you like to know?" 
           : "Tap the button and ask Learnie anything!"}
