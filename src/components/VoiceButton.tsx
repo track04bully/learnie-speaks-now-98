@@ -18,46 +18,17 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   onRecordingChange
 }) => {
   const { toast } = useToast();
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  const handleError = useCallback((message: string) => {
-    setErrorMessage(message);
-    onRecordingChange(false);
-    setIsConnecting(false);
-    toast({
-      title: "Oops! Something went wrong",
-      description: "Let's try again!",
-      variant: "destructive",
-    });
-  }, [toast, onRecordingChange]);
-
   const handleClick = useCallback(async () => {
-    // Reset error message on new interaction
-    setErrorMessage(null);
-
     try {
       const wsManager = WebSocketManager.getInstance();
       
-      // If speaking, stop and start recording immediately
-      if (isSpeaking) {
-        wsManager.interruptSpeaking();
-        onSpeakingChange(false);
-        await wsManager.startRecording(onSpeakingChange, (error) => {
-          toast({
-            title: "Oops!",
-            description: "Let's try that again!",
-            variant: "destructive",
-          });
-        });
-        onRecordingChange(true);
-        return;
-      }
-
-      // If recording, stop recording
-      if (isRecording) {
-        wsManager.manualStop();
+      // If already speaking or recording, stop
+      if (isSpeaking || isRecording) {
+        wsManager.disconnect();
         onRecordingChange(false);
+        onSpeakingChange(false);
         return;
       }
 
@@ -66,7 +37,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         setIsConnecting(true);
         toast({
           title: "Hi there!",
-          description: "Learnie is getting ready to talk with you",
+          description: "Learnie is getting ready to listen",
         });
         
         try {
@@ -74,7 +45,11 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
           setIsConnecting(false);
         } catch (error) {
           setIsConnecting(false);
-          handleError("Connection failed. Please try again.");
+          toast({
+            title: "Oops!",
+            description: "Let's try that again!",
+            variant: "destructive",
+          });
           return;
         }
       }
@@ -96,7 +71,7 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         variant: "destructive",
       });
     }
-  }, [isRecording, isSpeaking, toast, onRecordingChange, onSpeakingChange, handleError]);
+  }, [isRecording, isSpeaking, toast, onRecordingChange, onSpeakingChange]);
 
   return (
     <button

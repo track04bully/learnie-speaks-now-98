@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import VoiceButton from './VoiceButton';
 import AudioWaves from './AudioWaves';
@@ -58,9 +57,9 @@ const LearnieAssistant: React.FC = () => {
   };
 
   const getStatusText = () => {
-    if (isRecording) return "I'm listening to you!";
-    if (isSpeaking) return "I'm talking!";
-    return "Tap the button and let's talk!";
+    if (isRecording) return "I'm listening...";
+    if (isSpeaking) return "Let me tell you something!";
+    return "Tap anywhere to start talking!";
   };
 
   return (
