@@ -1,7 +1,7 @@
 
 const BUFFER_SIZE = 4096;
 const SILENCE_THRESHOLD = 0.01;
-const SAMPLE_RATE = 24000;
+const SAMPLE_RATE = 16000;
 
 class PCMAudioProcessor extends AudioWorkletProcessor {
   constructor() {
