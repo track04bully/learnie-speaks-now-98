@@ -35,8 +35,7 @@ export class WebSocketManager {
     return new Promise((resolve, reject) => {
       try {
         // For production use the deployed edge function URL
-        const projectId = 'ceofrvinluwymyuizztv';
-        const wsUrl = `wss://${projectId}.functions.supabase.co/realtime-chat`;
+        const wsUrl = `wss://ceofrvinluwymyuizztv.functions.supabase.co/realtime-chat`;
         
         console.log('Connecting to WebSocket at:', wsUrl);
         this.webSocket = new WebSocket(wsUrl);
@@ -49,6 +48,7 @@ export class WebSocketManager {
         };
         
         this.webSocket.onmessage = (event) => {
+          console.log('WebSocket message received:', event.data.slice(0, 100) + '...');
           if (this.onMessage) this.onMessage(event);
         };
         
@@ -116,10 +116,12 @@ export class WebSocketManager {
         };
         
         this.webSocket.send(JSON.stringify(audioMessage));
+        console.log('Sent audio data:', audioMessage.audio.length, 'bytes');
       } else {
         // For regular JSON messages
         const messageString = JSON.stringify(message);
         this.webSocket.send(messageString);
+        console.log('Sent message:', message.type);
       }
     } catch (error) {
       console.error('Error sending WebSocket message:', error);
