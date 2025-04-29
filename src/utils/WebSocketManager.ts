@@ -124,6 +124,13 @@ export class WebSocketManager {
   
   manualStop(): void {
     console.log('Manual stop recording');
+    
+    // When manually stopping, send the commit event without the 'name' field
+    if (this.isConnected()) {
+      this.sendMessage({
+        type: 'input_audio_buffer.commit'
+      });
+    }
   }
   
   interruptSpeaking(): void {
