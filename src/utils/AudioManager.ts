@@ -1,3 +1,4 @@
+
 import { WebSocketManager } from './WebSocketManager';
 import { AudioRecorder } from './AudioRecorder';
 import { AudioStateManager } from './audio/AudioStateManager';
@@ -126,52 +127,11 @@ export class AudioManager {
     }
     
     try {
-      // Convert audio data to Float32Array for processing
-      const view = new DataView(audioData);
-      const floatArray = new Float32Array(view.byteLength / 2);
-      for (let i = 0; i < floatArray.length; i++) {
-        floatArray[i] = view.getInt16(i * 2, true) / 32768.0; // true = little endian
-      }
-      
-      // Convert audio data to base64
-      const base64Audio = this.encodeAudioData(floatArray);
-      
-      // Send audio message without the 'name' field per April 2025 update
-      const audioMessage = {
-        type: 'input_audio_buffer.append',
-        audio: base64Audio
-      };
-      
-      this.webSocketManager.sendMessage(audioMessage);
+      // Send the audio data directly to the WebSocketManager
+      // The WebSocketManager will handle the base64 encoding and JSON formatting
+      this.webSocketManager.sendMessage(audioData);
     } catch (error) {
       console.error('Error sending audio data:', error);
-    }
-  }
-  
-  private encodeAudioData(float32Array: Float32Array): string {
-    try {
-      // Convert to 16-bit PCM
-      const int16Array = new Int16Array(float32Array.length);
-      for (let i = 0; i < float32Array.length; i++) {
-        const s = Math.max(-1, Math.min(1, float32Array[i]));
-        int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-      }
-      
-      // Convert to binary string
-      const uint8Array = new Uint8Array(int16Array.buffer);
-      let binary = '';
-      const chunkSize = 0x8000;
-      
-      for (let i = 0; i < uint8Array.length; i += chunkSize) {
-        const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
-        binary += String.fromCharCode.apply(null, Array.from(chunk));
-      }
-      
-      // Convert to base64
-      return btoa(binary);
-    } catch (error) {
-      console.error('Error encoding audio data:', error);
-      throw error;
     }
   }
   
@@ -182,9 +142,16 @@ export class AudioManager {
     }
     
     try {
+      // Send commit event to finalize the audio buffer
+      this.webSocketManager.sendMessage({
+        type: 'input_audio_buffer.commit',
+        event_id: `commit_${Date.now()}`
+      });
+      
       // Send text message event
-      const textMessage = {
+      this.webSocketManager.sendMessage({
         type: 'conversation.item.create',
+        event_id: `conv_${Date.now()}`,
         item: {
           type: 'message',
           role: 'user',
@@ -194,13 +161,12 @@ export class AudioManager {
             }
           ]
         }
-      };
-      
-      this.webSocketManager.sendMessage(textMessage);
+      });
       
       // Send response creation request
       this.webSocketManager.sendMessage({
-        type: 'response.create'
+        type: 'response.create',
+        event_id: `resp_${Date.now()}`
       });
       
       console.log('Response requested');
@@ -212,6 +178,7 @@ export class AudioManager {
   private handleWebSocketMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
+      console.log('Received WebSocket event:', data.type);
       
       // Handle different event types
       switch (data.type) {

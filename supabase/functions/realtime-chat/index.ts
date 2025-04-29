@@ -87,16 +87,17 @@ serve(async (req) => {
           sessionCreated = true;
           console.log("Session created, sending session configuration...");
           
-          // Use updated session configuration format (April 2025)
+          // Use updated session configuration format with correct audio formats
           const sessionConfig = {
             type: "session.update",
             event_id: `evt_${Date.now()}`,
             session: {
               modalities: ["audio"],              
-              voice: "echo",                      
-              audio: {                           
-                format: "pcm16",
-                sample_rate: 24000,
+              voice: "echo",
+              audio: {
+                input_format: "pcm_16khz",  // Updated to correct format
+                output_format: "pcm_16khz", // Updated to correct format
+                sample_rate: 16000,  
                 channel_count: 1
               },
               turn_detection: {                   
@@ -141,21 +142,32 @@ serve(async (req) => {
         
         let message;
         try {
-          message = JSON.parse(event.data);
+          // Handle binary data by converting to base64 if needed
+          if (event.data instanceof ArrayBuffer) {
+            console.log("Received binary data from client");
+            const uint8Array = new Uint8Array(event.data);
+            let binaryString = '';
+            uint8Array.forEach(byte => {
+              binaryString += String.fromCharCode(byte);
+            });
+            const base64Data = btoa(binaryString);
+            
+            // Create JSON message with base64 data
+            message = {
+              type: "input_audio_buffer.append",
+              event_id: `audio_${Date.now()}`,
+              audio: base64Data
+            };
+          } else {
+            // Parse JSON message
+            message = JSON.parse(event.data);
+          }
         } catch (e) {
-          console.error("Invalid JSON from client:", event.data);
+          console.error("Invalid data from client:", e);
           return;
         }
         
-        // Remove 'name' field from input_audio_buffer events per April 2025 update
-        if (message.type && message.type.startsWith('input_audio_buffer.')) {
-          if (message.name) {
-            delete message.name;
-            console.log("Removed 'name' field from audio buffer event");
-          }
-        }
-        
-        // Forward the modified message to OpenAI
+        // Forward the message to OpenAI
         serverSocket.send(JSON.stringify(message));
       } catch (error) {
         console.error("Error handling message from client:", error);

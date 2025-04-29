@@ -37,15 +37,19 @@ export class AudioRecorder {
       });
       console.log('✅ Microphone access granted');
       
+      // Create AudioContext with the correct sample rate
       this.audioContext = new AudioContext({
         sampleRate: SAMPLE_RATE,
       });
       
       console.log(`🎵 AudioContext initialized at ${this.audioContext.sampleRate}Hz`);
       
+      // Explicitly load the AudioWorklet module
+      console.log('Loading AudioWorklet module...');
       await this.audioContext.audioWorklet.addModule('/audioWorkletProcessor.js');
       console.log('✅ Audio worklet processor loaded');
       
+      // Create the worklet node and source
       this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');
       this.source = this.audioContext.createMediaStreamSource(this.stream);
       
@@ -57,9 +61,12 @@ export class AudioRecorder {
         } else if (event.data.type === 'audio_data') {
           console.log('🎵 Audio chunk received:', event.data.data.byteLength, 'bytes');
           this.onAudioData(event.data.data);
+        } else if (event.data.type === 'status') {
+          console.log('📊 AudioWorklet status:', event.data.message);
         }
       };
       
+      // Connect the nodes
       this.source.connect(this.workletNode);
       this.workletNode.connect(this.audioContext.destination);
       

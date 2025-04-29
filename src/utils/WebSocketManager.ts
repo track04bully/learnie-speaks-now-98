@@ -98,8 +98,29 @@ export class WebSocketManager {
     }
     
     try {
-      const messageString = JSON.stringify(message);
-      this.webSocket.send(messageString);
+      // If message is an ArrayBuffer (raw audio data), format it properly
+      if (message instanceof ArrayBuffer) {
+        const uint8Array = new Uint8Array(message);
+        let binaryString = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          binaryString += String.fromCharCode(uint8Array[i]);
+        }
+        
+        const base64Audio = btoa(binaryString);
+        
+        // Format as JSON with base64 audio data
+        const audioMessage = {
+          type: 'input_audio_buffer.append',
+          event_id: `audio_${Date.now()}`,
+          audio: base64Audio
+        };
+        
+        this.webSocket.send(JSON.stringify(audioMessage));
+      } else {
+        // For regular JSON messages
+        const messageString = JSON.stringify(message);
+        this.webSocket.send(messageString);
+      }
     } catch (error) {
       console.error('Error sending WebSocket message:', error);
     }
