@@ -88,27 +88,29 @@ serve(async (req) => {
           console.log("Session created, sending session configuration...");
           
           // Use updated session configuration format (April 2025)
-          serverSocket.send(JSON.stringify({
-            "event_id": "update_" + Date.now(),
-            "type": "session.update",
-            "session": {
-              "modalities": ["text", "audio"],
-              "instructions": "You are Learnie, a friendly and helpful AI assistant specialized in knowledge sharing. You're designed to be conversational, warm, and helpful. You have a cheerful and supportive personality. Respond to questions with clarity and friendliness.",
-              "voice": "alloy",
-              // Note: input_audio_format & output_audio_format removed per April 2025 update
-              "input_audio_transcription": {
-                "model": "whisper-1"
+          const sessionConfig = {
+            type: "session.update",
+            event_id: `evt_${Date.now()}`,
+            session: {
+              modalities: ["audio"],              
+              voice: "echo",                      
+              audio: {                           
+                format: "pcm16",
+                sample_rate: 24000,
+                channel_count: 1
               },
-              "turn_detection": {
-                "type": "server_vad",
-                "threshold": 0.5,
-                "prefix_padding_ms": 300,
-                "silence_duration_ms": 1000
+              turn_detection: {                   
+                type: "server",
+                vad_threshold: 0.5,
+                prefix_padding_ms: 300,
+                silence_duration_ms: 1000
               },
-              "temperature": 0.8,
-              "max_response_output_tokens": "inf"
+              instructions:
+                "You are Learnie, a friendly tutor for children. Speak simply. Encourage."
             }
-          }));
+          };
+          
+          serverSocket.send(JSON.stringify(sessionConfig));
         }
         
         // Forward all messages from OpenAI to the client

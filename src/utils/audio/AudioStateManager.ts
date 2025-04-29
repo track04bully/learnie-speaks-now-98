@@ -5,8 +5,10 @@ export class AudioStateManager {
   private isProcessingResponse: boolean = false;
   private audioBufferCreated: boolean = false;
   private sessionConfirmed: boolean = false;
+  private isListening: boolean = false;
+  private isSpeaking: boolean = false;
 
-  constructor(private readonly onSilence: () => void) {}
+  constructor(private readonly onSilence: () => void = () => {}) {}
 
   handleSilence() {
     if (this.silenceTimeout) {
@@ -57,6 +59,22 @@ export class AudioStateManager {
   isSessionConfirmed(): boolean {
     return this.sessionConfirmed;
   }
+  
+  setIsListening(value: boolean) {
+    this.isListening = value;
+  }
+  
+  isListening(): boolean {
+    return this.isListening;
+  }
+  
+  setIsSpeaking(value: boolean) {
+    this.isSpeaking = value;
+  }
+  
+  isSpeaking(): boolean {
+    return this.isSpeaking;
+  }
 
   setupAutoStop(callback: () => void) {
     this.autoStopTimeout = setTimeout(() => {
@@ -69,5 +87,7 @@ export class AudioStateManager {
     this.isProcessingResponse = false;
     this.audioBufferCreated = false;
     this.sessionConfirmed = false;
+    this.isListening = false;
+    this.isSpeaking = false;
   }
 }

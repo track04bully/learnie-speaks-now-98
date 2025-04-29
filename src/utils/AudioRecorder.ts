@@ -1,3 +1,4 @@
+
 import { SAMPLE_RATE } from './audioConstants';
 
 export class AudioRecorder {
@@ -6,12 +7,20 @@ export class AudioRecorder {
   private workletNode: AudioWorkletNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
   private onSilenceCallback: (() => void) | null = null;
+  public onAudioData: (audioData: ArrayBuffer) => void;
+  public onSilenceDetected: () => void;
 
   constructor(
-    private onAudioData: (audioData: ArrayBuffer) => void,
+    onAudioData: (audioData: ArrayBuffer) => void,
     onSilence?: () => void
   ) {
+    this.onAudioData = onAudioData;
     this.onSilenceCallback = onSilence || null;
+    this.onSilenceDetected = () => {
+      if (this.onSilenceCallback) {
+        this.onSilenceCallback();
+      }
+    };
   }
 
   async start() {
@@ -42,9 +51,9 @@ export class AudioRecorder {
       
       // Handle messages from the worklet
       this.workletNode.port.onmessage = (event) => {
-        if (event.data.type === 'silence_detected' && this.onSilenceCallback) {
+        if (event.data.type === 'silence_detected' && this.onSilenceDetected) {
           console.log('🤫 Silence detected');
-          this.onSilenceCallback();
+          this.onSilenceDetected();
         } else if (event.data.type === 'audio_data') {
           console.log('🎵 Audio chunk received:', event.data.data.byteLength, 'bytes');
           this.onAudioData(event.data.data);

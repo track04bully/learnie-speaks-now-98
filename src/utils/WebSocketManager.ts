@@ -1,5 +1,6 @@
 
 export class WebSocketManager {
+  private static instance: WebSocketManager | null = null;
   private webSocket: WebSocket | null = null;
   private reconnectAttempts = 0;
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
@@ -9,6 +10,14 @@ export class WebSocketManager {
   public onOpen: (() => void) | null = null;
   public onClose: (() => void) | null = null;
   public onError: ((error: Event) => void) | null = null;
+  
+  // Singleton pattern
+  public static getInstance(): WebSocketManager {
+    if (!WebSocketManager.instance) {
+      WebSocketManager.instance = new WebSocketManager();
+    }
+    return WebSocketManager.instance;
+  }
   
   async connect(): Promise<void> {
     if (this.webSocket && (this.webSocket.readyState === WebSocket.OPEN || this.webSocket.readyState === WebSocket.CONNECTING)) {
@@ -102,5 +111,22 @@ export class WebSocketManager {
       this.webSocket.close(1000, 'Disconnecting normally');
       this.webSocket = null;
     }
+  }
+  
+  isConnected(): boolean {
+    return this.webSocket?.readyState === WebSocket.OPEN;
+  }
+  
+  startRecording(onSpeakingChange: (isSpeaking: boolean) => void, onError: (errorMessage?: string) => void): Promise<void> {
+    console.log('Starting recording in WebSocketManager');
+    return Promise.resolve();
+  }
+  
+  manualStop(): void {
+    console.log('Manual stop recording');
+  }
+  
+  interruptSpeaking(): void {
+    console.log('Interrupting speaking');
   }
 }

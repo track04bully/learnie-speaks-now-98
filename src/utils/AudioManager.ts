@@ -13,10 +13,16 @@ export class AudioManager {
   private silenceDetected = false;
   
   constructor() {
-    this.audioStateManager = new AudioStateManager();
-    this.webSocketManager = new WebSocketManager();
+    this.audioStateManager = new AudioStateManager(() => {
+      this.onSilenceDetected();
+    });
     
-    this.audioRecorder = new AudioRecorder();
+    this.webSocketManager = WebSocketManager.getInstance();
+    
+    this.audioRecorder = new AudioRecorder(
+      (audioData) => this.sendAudioData(audioData),
+      () => this.onSilenceDetected()
+    );
     
     this.webSocketManager.onMessage = (event) => {
       this.handleWebSocketMessage(event);
@@ -40,20 +46,13 @@ export class AudioManager {
       this.isRecording = false;
       this.audioStateManager.setIsSpeaking(false);
     };
-    
-    // Set up audio recorder callbacks
-    this.audioRecorder.onAudioData = (audioData) => {
-      if (this.isRecording && this.isConnected) {
-        this.sendAudioData(audioData);
-      }
-    };
-    
-    this.audioRecorder.onSilenceDetected = () => {
-      this.silenceDetected = true;
-      if (this.isRecording) {
-        this.stopRecording();
-      }
-    };
+  }
+  
+  private onSilenceDetected(): void {
+    this.silenceDetected = true;
+    if (this.isRecording) {
+      this.stopRecording();
+    }
   }
   
   async connect(): Promise<void> {
@@ -121,15 +120,22 @@ export class AudioManager {
     this.isProcessing = false;
   }
   
-  private sendAudioData(audioData: Float32Array): void {
+  private sendAudioData(audioData: ArrayBuffer): void {
     if (!this.isConnected) {
       console.warn('Cannot send audio data: WebSocket not connected');
       return;
     }
     
     try {
+      // Convert audio data to Float32Array for processing
+      const view = new DataView(audioData);
+      const floatArray = new Float32Array(view.byteLength / 2);
+      for (let i = 0; i < floatArray.length; i++) {
+        floatArray[i] = view.getInt16(i * 2, true) / 32768.0; // true = little endian
+      }
+      
       // Convert audio data to base64
-      const base64Audio = this.encodeAudioData(audioData);
+      const base64Audio = this.encodeAudioData(floatArray);
       
       // Remove the 'name' field from the message per April 2025 update
       const audioMessage = {
