@@ -1,4 +1,3 @@
-
 import { WebSocketManager } from './WebSocketManager';
 import { AudioRecorder } from './AudioRecorder';
 import { AudioStateManager } from './audio/AudioStateManager';
@@ -137,11 +136,10 @@ export class AudioManager {
       // Convert audio data to base64
       const base64Audio = this.encodeAudioData(floatArray);
       
-      // Remove the 'name' field from the message per April 2025 update
+      // Send audio message without the 'name' field per April 2025 update
       const audioMessage = {
         type: 'input_audio_buffer.append',
         audio: base64Audio
-        // 'name: "mic"' field removed
       };
       
       this.webSocketManager.sendMessage(audioMessage);
