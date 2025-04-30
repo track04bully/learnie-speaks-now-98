@@ -15,7 +15,10 @@ class PCMAudioProcessor extends AudioWorkletProcessor {
     
     // Verify that we're using the correct sample rate
     if (sampleRate !== SAMPLE_RATE) {
-      console.warn(`AudioWorklet running at ${sampleRate}Hz instead of expected ${SAMPLE_RATE}Hz. This may cause audio issues.`);
+      console.warn(`AudioWorklet running at ${sampleRate}Hz instead of expected ${SAMPLE_RATE}Hz. Resampling will be required.`);
+      this.needsResampling = true;
+    } else {
+      this.needsResampling = false;
     }
     
     // Send a startup message
@@ -26,9 +29,29 @@ class PCMAudioProcessor extends AudioWorkletProcessor {
   }
 
   detectSilence(input) {
+    // Calculate RMS amplitude
     const sumSquares = input.reduce((sum, sample) => sum + sample * sample, 0);
     const rms = Math.sqrt(sumSquares / input.length);
     return rms < SILENCE_THRESHOLD;
+  }
+  
+  // Simple resampling function if needed
+  resample(input, fromSampleRate, toSampleRate) {
+    const ratio = fromSampleRate / toSampleRate;
+    const newLength = Math.round(input.length / ratio);
+    const result = new Float32Array(newLength);
+    
+    for (let i = 0; i < newLength; i++) {
+      // Simple linear interpolation
+      const exactIndex = i * ratio;
+      const lowerIndex = Math.floor(exactIndex);
+      const fraction = exactIndex - lowerIndex;
+      const upperIndex = Math.min(lowerIndex + 1, input.length - 1);
+      
+      result[i] = input[lowerIndex] * (1 - fraction) + input[upperIndex] * fraction;
+    }
+    
+    return result;
   }
 
   process(inputs, outputs, parameters) {
@@ -45,7 +68,15 @@ class PCMAudioProcessor extends AudioWorkletProcessor {
       console.log(`Processed ${this.processingCount} audio chunks`);
     }
 
-    const isSilent = this.detectSilence(input);
+    // Process the audio
+    let processedInput = input;
+    
+    // Apply resampling if needed
+    if (this.needsResampling) {
+      processedInput = this.resample(input, sampleRate, SAMPLE_RATE);
+    }
+    
+    const isSilent = this.detectSilence(processedInput);
     
     if (isSilent) {
       if (!this.silenceStartTime) {
@@ -65,9 +96,9 @@ class PCMAudioProcessor extends AudioWorkletProcessor {
     }
 
     // Convert to 16-bit PCM
-    const pcm16Buffer = new Int16Array(input.length);
-    for (let i = 0; i < input.length; i++) {
-      let s = input[i];
+    const pcm16Buffer = new Int16Array(processedInput.length);
+    for (let i = 0; i < processedInput.length; i++) {
+      let s = processedInput[i];
       s = Math.max(-1, Math.min(1, s));
       pcm16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }

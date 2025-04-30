@@ -2,6 +2,7 @@
 export class WebSocketManager {
   private static instance: WebSocketManager | null = null;
   private webSocket: WebSocket | null = null;
+  private clientSecret: string | null = null;
   private reconnectAttempts = 0;
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
   private readonly RECONNECT_DELAY = 2000; // 2 seconds
@@ -28,29 +29,93 @@ export class WebSocketManager {
     // Reset reconnection attempts if this is a new connection
     this.reconnectAttempts = 0;
     
-    return this.createConnection();
+    // First, we need to get a client secret from our Edge function
+    try {
+      console.log('Fetching OpenAI session token...');
+      
+      // Call the Edge function to get a session token
+      const response = await fetch('https://ceofrvinluwymyuizztv.functions.supabase.co/functions/v1/realtime-chat');
+      
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Failed to get session token: ${error}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.client_secret?.value) {
+        throw new Error('No client secret in session response');
+      }
+      
+      this.clientSecret = data.client_secret.value;
+      console.log('Received client secret, connecting to OpenAI...');
+      
+      return this.createConnection();
+    } catch (error) {
+      console.error('Error getting session token:', error);
+      throw error;
+    }
   }
   
   private async createConnection(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        // For production use the deployed edge function URL with the correct path format
-        // The format must include the /functions/v1/ path segment
-        const wsUrl = `wss://ceofrvinluwymyuizztv.functions.supabase.co/functions/v1/realtime-chat`;
+        // Connect directly to OpenAI WebSocket API
+        const wsUrl = 'wss://api.openai.com/v1/realtime';
         
-        console.log('Connecting to WebSocket at:', wsUrl);
+        console.log('Connecting to OpenAI WebSocket at:', wsUrl);
         this.webSocket = new WebSocket(wsUrl);
         
         this.webSocket.onopen = () => {
           console.log('WebSocket connection established');
+          
+          // Authenticate with OpenAI using the client secret
+          if (this.webSocket && this.clientSecret) {
+            this.webSocket.send(JSON.stringify({
+              type: 'authentication',
+              client_secret: this.clientSecret
+            }));
+            console.log('Authentication message sent');
+          }
+          
           this.reconnectAttempts = 0;
           if (this.onOpen) this.onOpen();
           resolve();
         };
         
         this.webSocket.onmessage = (event) => {
-          console.log('WebSocket message received:', typeof event.data, 
-                     typeof event.data === 'string' ? event.data.slice(0, 100) + '...' : '[binary data]');
+          const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          console.log('WebSocket message received:', data.type || 'unknown type');
+          
+          if (data.type === 'session.created') {
+            console.log('Session created, configuring...');
+            // Configure the session
+            const sessionConfig = {
+              type: 'session.update',
+              event_id: `evt_${Date.now()}`,
+              session: {
+                modalities: ['audio'],
+                voice: 'echo',
+                audio: {
+                  input_format: 'pcm_16khz',
+                  output_format: 'pcm_16khz',
+                  sample_rate: 16000,
+                  channel_count: 1
+                },
+                turn_detection: {
+                  type: 'server',
+                  vad_threshold: 0.5, 
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 1000
+                },
+                instructions: 'You are Learnie, a friendly tutor for children. Speak simply and clearly. Be encouraging and positive.'
+              }
+            };
+            
+            this.webSocket?.send(JSON.stringify(sessionConfig));
+            console.log('Session configuration sent');
+          }
+          
           if (this.onMessage) this.onMessage(event);
         };
         
@@ -92,7 +157,7 @@ export class WebSocketManager {
     console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})...`);
     
     setTimeout(() => {
-      this.createConnection().catch(error => {
+      this.connect().catch(error => {
         console.error('Reconnection attempt failed:', error);
       });
     }, this.RECONNECT_DELAY * this.reconnectAttempts);
@@ -149,15 +214,10 @@ export class WebSocketManager {
     return this.webSocket?.readyState === WebSocket.OPEN;
   }
   
-  startRecording(onSpeakingChange: (isSpeaking: boolean) => void, onError: (errorMessage?: string) => void): Promise<void> {
-    console.log('Starting recording in WebSocketManager');
-    return Promise.resolve();
-  }
-  
   manualStop(): void {
     console.log('Manual stop recording');
     
-    // When manually stopping, send the commit event without the 'name' field
+    // When manually stopping, send the commit event
     if (this.isConnected()) {
       this.sendMessage({
         type: 'input_audio_buffer.commit',
@@ -174,6 +234,6 @@ export class WebSocketManager {
   
   interruptSpeaking(): void {
     console.log('Interrupting speaking');
-    // Add any logic needed to interrupt the AI speaking
+    // We can send a special event to interrupt AI speaking when implemented
   }
 }

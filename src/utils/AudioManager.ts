@@ -15,6 +15,7 @@ export class AudioManager {
   private isProcessing = false;
   private isConnected = false;
   private silenceDetected = false;
+  private reconnectingPromise: Promise<void> | null = null;
   
   constructor() {
     this.audioStateManager = new AudioStateManager(() => {
@@ -27,13 +28,13 @@ export class AudioManager {
     
     this.webSocketManager.onOpen = () => {
       this.isConnected = true;
-      console.log('WebSocket connection opened');
+      console.log('WebSocket connection opened in AudioManager');
     };
 
     this.webSocketManager.onClose = () => {
       this.isConnected = false;
       this.isRecording = false;
-      console.log('WebSocket connection closed');
+      console.log('WebSocket connection closed in AudioManager');
       this.audioStateManager.setIsSpeaking(false);
     };
 
@@ -42,6 +43,23 @@ export class AudioManager {
       this.isConnected = false;
       this.isRecording = false;
       this.audioStateManager.setIsSpeaking(false);
+    };
+    
+    this.webSocketManager.onMessage = (event) => {
+      try {
+        if (typeof event.data === 'string') {
+          const data = JSON.parse(event.data);
+          console.log('AudioManager received message type:', data.type);
+          
+          if (data.type === 'response.audio.delta') {
+            this.audioStateManager.setIsSpeaking(true);
+          } else if (data.type === 'response.audio.done') {
+            this.audioStateManager.setIsSpeaking(false);
+          }
+        }
+      } catch (error) {
+        console.error('Error handling WebSocket message:', error);
+      }
     };
   }
   
@@ -55,11 +73,20 @@ export class AudioManager {
   
   async connect(): Promise<void> {
     try {
+      if (this.reconnectingPromise) {
+        return this.reconnectingPromise;
+      }
+      
       console.log('AudioManager: Connecting to WebSocket...');
-      await this.webSocketManager.connect();
+      this.reconnectingPromise = this.webSocketManager.connect();
+      await this.reconnectingPromise;
+      this.reconnectingPromise = null;
       console.log('AudioManager: Successfully connected to WebSocket');
+      this.isConnected = true;
     } catch (error) {
+      this.reconnectingPromise = null;
       console.error('AudioManager: Failed to connect to WebSocket:', error);
+      this.isConnected = false;
       throw error;
     }
   }
