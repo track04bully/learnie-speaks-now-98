@@ -142,25 +142,14 @@ serve(async (req) => {
         
         let message;
         try {
-          // Handle binary data by converting to base64 if needed
-          if (event.data instanceof ArrayBuffer) {
-            console.log("Received binary data from client");
-            const uint8Array = new Uint8Array(event.data);
-            let binaryString = '';
-            uint8Array.forEach(byte => {
-              binaryString += String.fromCharCode(byte);
-            });
-            const base64Data = btoa(binaryString);
-            
-            // Create JSON message with base64 data
-            message = {
-              type: "input_audio_buffer.append",
-              event_id: `audio_${Date.now()}`,
-              audio: base64Data
-            };
-          } else {
+          // Check if data is string or binary
+          if (typeof event.data === 'string') {
             // Parse JSON message
             message = JSON.parse(event.data);
+          } else {
+            // Handle binary data as a last resort
+            console.warn("Received binary data from client - should be JSON formatted");
+            return;
           }
         } catch (e) {
           console.error("Invalid data from client:", e);

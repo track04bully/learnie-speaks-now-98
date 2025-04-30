@@ -34,8 +34,8 @@ export class WebSocketManager {
   private async createConnection(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        // For production use the deployed edge function URL
-        const wsUrl = `wss://ceofrvinluwymyuizztv.functions.supabase.co/realtime-chat`;
+        // For production use the deployed edge function URL with the correct path format
+        const wsUrl = `wss://ceofrvinluwymyuizztv.functions.supabase.co/functions/v1/realtime-chat`;
         
         console.log('Connecting to WebSocket at:', wsUrl);
         this.webSocket = new WebSocket(wsUrl);
@@ -65,6 +65,11 @@ export class WebSocketManager {
         
         this.webSocket.onerror = (error) => {
           console.error('WebSocket error:', error);
+          // Add more detailed error logging
+          const target = error.target as WebSocket;
+          if (target && target.readyState !== undefined) {
+            console.error(`WebSocket state at time of error: ${target.readyState}`);
+          }
           if (this.onError) this.onError(error);
           reject(error);
         };

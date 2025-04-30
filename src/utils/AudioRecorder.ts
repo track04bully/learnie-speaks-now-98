@@ -44,14 +44,19 @@ export class AudioRecorder {
       
       console.log(`🎵 AudioContext initialized at ${this.audioContext.sampleRate}Hz`);
       
-      // Explicitly load the AudioWorklet module
+      // Explicitly load the AudioWorklet module with proper error handling
       console.log('Loading AudioWorklet module...');
-      await this.audioContext.audioWorklet.addModule('/audioWorkletProcessor.js');
-      console.log('✅ Audio worklet processor loaded');
+      try {
+        await this.audioContext.audioWorklet.addModule('/audioWorkletProcessor.js');
+        console.log('✅ Audio worklet processor loaded successfully');
+      } catch (workletError) {
+        console.error('❌ Failed to load AudioWorklet module:', workletError);
+        throw new Error(`AudioWorklet failed to load: ${workletError.message}`);
+      }
       
       // Create the worklet node and source
-      this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');
       this.source = this.audioContext.createMediaStreamSource(this.stream);
+      this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');
       
       // Handle messages from the worklet
       this.workletNode.port.onmessage = (event) => {
@@ -63,6 +68,8 @@ export class AudioRecorder {
           this.onAudioData(event.data.data);
         } else if (event.data.type === 'status') {
           console.log('📊 AudioWorklet status:', event.data.message);
+        } else {
+          console.log('📊 Unknown message from AudioWorklet:', event.data);
         }
       };
       
