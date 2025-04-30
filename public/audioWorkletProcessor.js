@@ -2,6 +2,7 @@
 const BUFFER_SIZE = 4096;
 const SILENCE_THRESHOLD = 0.01;
 const SAMPLE_RATE = 16000;
+const SILENCE_DURATION = 2000; // ms
 
 class PCMAudioProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -49,13 +50,16 @@ class PCMAudioProcessor extends AudioWorkletProcessor {
     if (isSilent) {
       if (!this.silenceStartTime) {
         this.silenceStartTime = currentTime;
-      } else if (currentTime - this.silenceStartTime > 2) {
-        // 2 seconds of silence detected
+        console.log('Silence started at', this.silenceStartTime);
+      } else if (currentTime - this.silenceStartTime > SILENCE_DURATION/1000) { // Convert ms to seconds
+        // Silence duration threshold reached
         this.port.postMessage({ type: 'silence_detected' });
         console.log('Silence detected in AudioWorklet, notifying main thread');
-        return true;
+        // Reset silence timer after notification
+        this.silenceStartTime = null;
       }
     } else {
+      // If not silent, reset the silence timer
       this.silenceStartTime = null;
       this.lastAudioTime = currentTime;
     }

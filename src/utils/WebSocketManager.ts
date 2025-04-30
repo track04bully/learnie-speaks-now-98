@@ -35,6 +35,7 @@ export class WebSocketManager {
     return new Promise((resolve, reject) => {
       try {
         // For production use the deployed edge function URL with the correct path format
+        // The format must include the /functions/v1/ path segment
         const wsUrl = `wss://ceofrvinluwymyuizztv.functions.supabase.co/functions/v1/realtime-chat`;
         
         console.log('Connecting to WebSocket at:', wsUrl);
@@ -48,7 +49,8 @@ export class WebSocketManager {
         };
         
         this.webSocket.onmessage = (event) => {
-          console.log('WebSocket message received:', event.data.slice(0, 100) + '...');
+          console.log('WebSocket message received:', typeof event.data, 
+                     typeof event.data === 'string' ? event.data.slice(0, 100) + '...' : '[binary data]');
           if (this.onMessage) this.onMessage(event);
         };
         
@@ -105,6 +107,7 @@ export class WebSocketManager {
     try {
       // If message is an ArrayBuffer (raw audio data), format it properly
       if (message instanceof ArrayBuffer) {
+        // Convert ArrayBuffer to base64 string
         const uint8Array = new Uint8Array(message);
         let binaryString = '';
         for (let i = 0; i < uint8Array.length; i++) {
@@ -120,8 +123,9 @@ export class WebSocketManager {
           audio: base64Audio
         };
         
-        this.webSocket.send(JSON.stringify(audioMessage));
-        console.log('Sent audio data:', audioMessage.audio.length, 'bytes');
+        const messageString = JSON.stringify(audioMessage);
+        this.webSocket.send(messageString);
+        console.log('Sent audio data:', base64Audio.length, 'bytes');
       } else {
         // For regular JSON messages
         const messageString = JSON.stringify(message);
@@ -156,12 +160,20 @@ export class WebSocketManager {
     // When manually stopping, send the commit event without the 'name' field
     if (this.isConnected()) {
       this.sendMessage({
-        type: 'input_audio_buffer.commit'
+        type: 'input_audio_buffer.commit',
+        event_id: `commit_${Date.now()}`
+      });
+      
+      // Immediately follow with a response creation request
+      this.sendMessage({
+        type: 'response.create',
+        event_id: `resp_${Date.now()}`
       });
     }
   }
   
   interruptSpeaking(): void {
     console.log('Interrupting speaking');
+    // Add any logic needed to interrupt the AI speaking
   }
 }

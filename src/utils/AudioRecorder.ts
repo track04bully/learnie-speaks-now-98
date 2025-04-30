@@ -47,6 +47,10 @@ export class AudioRecorder {
       // Explicitly load the AudioWorklet module with proper error handling
       console.log('Loading AudioWorklet module...');
       try {
+        // Use absolute URL to ensure the path is correct
+        const workletUrl = new URL('/audioWorkletProcessor.js', window.location.origin).href;
+        console.log(`Loading AudioWorklet from ${workletUrl}`);
+        
         await this.audioContext.audioWorklet.addModule('/audioWorkletProcessor.js');
         console.log('✅ Audio worklet processor loaded successfully');
       } catch (workletError) {
@@ -56,7 +60,15 @@ export class AudioRecorder {
       
       // Create the worklet node and source
       this.source = this.audioContext.createMediaStreamSource(this.stream);
-      this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');
+      
+      try {
+        console.log('Creating AudioWorkletNode with processor "pcm-processor"');
+        this.workletNode = new AudioWorkletNode(this.audioContext, 'pcm-processor');
+        console.log('✅ AudioWorkletNode created successfully');
+      } catch (nodeError) {
+        console.error('❌ Failed to create AudioWorkletNode:', nodeError);
+        throw new Error(`Failed to create AudioWorkletNode: ${nodeError.message}`);
+      }
       
       // Handle messages from the worklet
       this.workletNode.port.onmessage = (event) => {
@@ -85,22 +97,28 @@ export class AudioRecorder {
   }
 
   stop() {
+    console.log('Stopping AudioRecorder...');
+    
     if (this.source) {
       this.source.disconnect();
       this.source = null;
+      console.log('Source disconnected');
     }
     if (this.workletNode) {
       this.workletNode.disconnect();
       this.workletNode = null;
+      console.log('WorkletNode disconnected');
     }
     if (this.stream) {
       this.stream.getTracks().forEach(track => track.stop());
       this.stream = null;
+      console.log('Media stream tracks stopped');
     }
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
+      console.log('AudioContext closed');
     }
-    console.log('🛑 Audio recording stopped');
+    console.log('🛑 Audio recording stopped completely');
   }
 }

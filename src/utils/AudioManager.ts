@@ -5,7 +5,7 @@ import { AudioStateManager } from './audio/AudioStateManager';
 
 export class AudioManager {
   private webSocketManager: WebSocketManager;
-  private audioRecorder: AudioRecorder;
+  private audioRecorder: AudioRecorder | null = null;
   private audioStateManager: AudioStateManager;
   private isRecording = false;
   private isProcessing = false;
@@ -18,11 +18,6 @@ export class AudioManager {
     });
     
     this.webSocketManager = WebSocketManager.getInstance();
-    
-    this.audioRecorder = new AudioRecorder(
-      (audioData) => this.sendAudioData(audioData),
-      () => this.onSilenceDetected()
-    );
     
     this.webSocketManager.onMessage = (event) => {
       this.handleWebSocketMessage(event);
@@ -41,7 +36,7 @@ export class AudioManager {
     };
 
     this.webSocketManager.onError = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('WebSocket error in AudioManager:', error);
       this.isConnected = false;
       this.isRecording = false;
       this.audioStateManager.setIsSpeaking(false);
@@ -49,6 +44,7 @@ export class AudioManager {
   }
   
   private onSilenceDetected(): void {
+    console.log('Silence detected in AudioManager');
     this.silenceDetected = true;
     if (this.isRecording) {
       this.stopRecording();
@@ -57,25 +53,27 @@ export class AudioManager {
   
   async connect(): Promise<void> {
     try {
+      console.log('AudioManager: Connecting to WebSocket...');
       await this.webSocketManager.connect();
+      console.log('AudioManager: Successfully connected to WebSocket');
     } catch (error) {
-      console.error('Failed to connect to WebSocket:', error);
+      console.error('AudioManager: Failed to connect to WebSocket:', error);
       throw error;
     }
   }
   
   async startRecording(): Promise<void> {
     if (this.isRecording || this.isProcessing) {
-      console.log('Already recording or processing');
+      console.log('AudioManager: Already recording or processing');
       return;
     }
     
     if (!this.isConnected) {
-      console.log('WebSocket not connected, attempting to connect...');
+      console.log('AudioManager: WebSocket not connected, attempting to connect...');
       try {
         await this.connect();
       } catch (error) {
-        console.error('Failed to connect WebSocket for recording:', error);
+        console.error('AudioManager: Failed to connect WebSocket for recording:', error);
         throw new Error('Failed to connect for recording');
       }
     }
@@ -85,19 +83,25 @@ export class AudioManager {
     this.audioStateManager.setIsListening(true);
     
     try {
+      // Instantiate a new AudioRecorder for this session
+      this.audioRecorder = new AudioRecorder(
+        (audioData) => this.sendAudioData(audioData),
+        () => this.onSilenceDetected()
+      );
+      
       await this.audioRecorder.start();
-      console.log('Started recording audio');
+      console.log('AudioManager: Started recording audio');
     } catch (error) {
       this.isRecording = false;
       this.audioStateManager.setIsListening(false);
-      console.error('Failed to start recording:', error);
+      console.error('AudioManager: Failed to start recording:', error);
       throw error;
     }
   }
   
   stopRecording(): void {
     if (!this.isRecording) {
-      console.log('Not recording, nothing to stop');
+      console.log('AudioManager: Not recording, nothing to stop');
       return;
     }
     
@@ -105,15 +109,15 @@ export class AudioManager {
     this.isProcessing = true;
     this.audioStateManager.setIsListening(false);
     
-    this.audioRecorder.stop();
-    console.log('Stopped recording audio');
+    if (this.audioRecorder) {
+      this.audioRecorder.stop();
+      this.audioRecorder = null;
+      console.log('AudioManager: Stopped recording audio');
+    }
     
-    // If silence was detected, request a response
-    if (this.silenceDetected && this.isConnected) {
-      console.log('Requesting response after silence detection');
-      this.requestResponse();
-    } else if (this.isConnected) {
-      console.log('Requesting response after manual stop');
+    // If silence was detected or manually stopped, request a response
+    if (this.isConnected) {
+      console.log('AudioManager: Requesting response after audio recording stopped');
       this.requestResponse();
     }
     
@@ -122,22 +126,21 @@ export class AudioManager {
   
   private sendAudioData(audioData: ArrayBuffer): void {
     if (!this.isConnected) {
-      console.warn('Cannot send audio data: WebSocket not connected');
+      console.warn('AudioManager: Cannot send audio data: WebSocket not connected');
       return;
     }
     
     try {
       // Send the audio data directly to the WebSocketManager
-      // The WebSocketManager will handle the base64 encoding and JSON formatting
       this.webSocketManager.sendMessage(audioData);
     } catch (error) {
-      console.error('Error sending audio data:', error);
+      console.error('AudioManager: Error sending audio data:', error);
     }
   }
   
   private requestResponse(): void {
     if (!this.isConnected) {
-      console.warn('Cannot request response: WebSocket not connected');
+      console.warn('AudioManager: Cannot request response: WebSocket not connected');
       return;
     }
     
@@ -169,16 +172,16 @@ export class AudioManager {
         event_id: `resp_${Date.now()}`
       });
       
-      console.log('Response requested');
+      console.log('AudioManager: Response requested');
     } catch (error) {
-      console.error('Error requesting response:', error);
+      console.error('AudioManager: Error requesting response:', error);
     }
   }
   
   private handleWebSocketMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
-      console.log('Received WebSocket event:', data.type);
+      console.log('AudioManager: Received WebSocket event:', data.type);
       
       // Handle different event types
       switch (data.type) {
@@ -191,7 +194,7 @@ export class AudioManager {
           break;
           
         case 'error':
-          console.error('Error from WebSocket:', data.error);
+          console.error('AudioManager: Error from WebSocket:', data.error);
           break;
           
         default:
@@ -199,7 +202,7 @@ export class AudioManager {
           break;
       }
     } catch (error) {
-      console.error('Error handling WebSocket message:', error);
+      console.error('AudioManager: Error handling WebSocket message:', error);
     }
   }
   
@@ -208,13 +211,17 @@ export class AudioManager {
   }
   
   disconnect(): void {
-    if (this.isRecording) {
-      this.stopRecording();
+    if (this.isRecording && this.audioRecorder) {
+      this.audioRecorder.stop();
+      this.audioRecorder = null;
+      this.isRecording = false;
     }
     
     if (this.isConnected) {
       this.webSocketManager.disconnect();
       this.isConnected = false;
     }
+    
+    this.audioStateManager.reset();
   }
 }

@@ -1,7 +1,8 @@
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { WebSocketManager } from '@/utils/WebSocketManager';
+import { AudioManager } from '@/utils/AudioManager';
 import { useToast } from '@/hooks/use-toast';
 import { Mic, MicOff, Speaker, WifiOff } from 'lucide-react';
 
@@ -22,6 +23,18 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [audioManager, setAudioManager] = useState<AudioManager | null>(null);
+
+  // Initialize AudioManager on component mount
+  useEffect(() => {
+    const manager = new AudioManager();
+    setAudioManager(manager);
+    
+    return () => {
+      // Clean up on unmount
+      manager.disconnect();
+    };
+  }, []);
 
   const handleError = useCallback((message: string) => {
     setErrorMessage(message);
@@ -36,6 +49,8 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
   }, [toast, onRecordingChange]);
 
   const handleClick = useCallback(async () => {
+    if (!audioManager) return;
+    
     // Reset error states on new interaction
     setErrorMessage(null);
     setConnectionError(false);
@@ -47,20 +62,23 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
       if (isSpeaking) {
         wsManager.interruptSpeaking();
         onSpeakingChange(false);
-        await wsManager.startRecording(onSpeakingChange, (error) => {
-          toast({
-            title: "Oops!",
-            description: error || "Let's try that again!",
-            variant: "destructive",
-          });
-        });
-        onRecordingChange(true);
+        setIsConnecting(true);
+        
+        try {
+          await audioManager.startRecording();
+          setIsConnecting(false);
+          onRecordingChange(true);
+        } catch (error) {
+          setIsConnecting(false);
+          handleError(error.message || "Couldn't start recording. Let's try again!");
+          return;
+        }
         return;
       }
 
       // If recording, stop recording
       if (isRecording) {
-        wsManager.manualStop();
+        audioManager.stopRecording();
         onRecordingChange(false);
         return;
       }
@@ -83,25 +101,26 @@ const VoiceButton: React.FC<VoiceButtonProps> = ({
         }
       }
 
-      await wsManager.startRecording(onSpeakingChange, (error) => {
-        toast({
-          title: "Oops!",
-          description: error || "Let's try that again!",
-          variant: "destructive",
-        });
-      });
-      onRecordingChange(true);
+      setIsConnecting(true);
+      try {
+        await audioManager.startRecording();
+        onRecordingChange(true);
+        setIsConnecting(false);
+      } catch (error) {
+        setIsConnecting(false);
+        handleError(error.message || "Couldn't start recording. Please try again.");
+      }
       
     } catch (error) {
       console.error("Error:", error);
       handleError(error.message || "Something went wrong. Please try again.");
     }
-  }, [isRecording, isSpeaking, toast, onRecordingChange, onSpeakingChange, handleError]);
+  }, [isRecording, isSpeaking, toast, onRecordingChange, onSpeakingChange, handleError, audioManager]);
 
   return (
     <button
       onClick={handleClick}
-      disabled={isConnecting}
+      disabled={isConnecting || !audioManager}
       aria-label={isConnecting ? "Connecting..." : isRecording ? "Stop talking" : isSpeaking ? "Interrupt Learnie" : "Start talking"}
       className={cn(
         "relative w-40 h-40 md:w-56 md:h-56 text-white text-2xl md:text-4xl",

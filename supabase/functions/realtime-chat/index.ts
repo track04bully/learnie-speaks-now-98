@@ -146,17 +146,19 @@ serve(async (req) => {
           if (typeof event.data === 'string') {
             // Parse JSON message
             message = JSON.parse(event.data);
+            console.log("Received JSON message from client:", message.type);
           } else {
-            // Handle binary data as a last resort
+            // Handle binary data correctly
             console.warn("Received binary data from client - should be JSON formatted");
             return;
           }
         } catch (e) {
-          console.error("Invalid data from client:", e);
+          console.error("Invalid data from client:", e, typeof event.data);
           return;
         }
         
         // Forward the message to OpenAI
+        console.log("Forwarding message to OpenAI:", message.type);
         serverSocket.send(JSON.stringify(message));
       } catch (error) {
         console.error("Error handling message from client:", error);
