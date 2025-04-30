@@ -2,11 +2,15 @@
 import { WebSocketManager } from './WebSocketManager';
 import { AudioRecorder } from './AudioRecorder';
 import { AudioStateManager } from './audio/AudioStateManager';
+import { AudioManagerEvents } from './audio/AudioManagerEvents';
+import { AudioCommunication } from './audio/AudioCommunication';
 
 export class AudioManager {
   private webSocketManager: WebSocketManager;
   private audioRecorder: AudioRecorder | null = null;
   private audioStateManager: AudioStateManager;
+  private audioManagerEvents: AudioManagerEvents;
+  private audioCommunication: AudioCommunication;
   private isRecording = false;
   private isProcessing = false;
   private isConnected = false;
@@ -18,11 +22,9 @@ export class AudioManager {
     });
     
     this.webSocketManager = WebSocketManager.getInstance();
+    this.audioManagerEvents = new AudioManagerEvents(this.webSocketManager, this.audioStateManager);
+    this.audioCommunication = new AudioCommunication(this.webSocketManager);
     
-    this.webSocketManager.onMessage = (event) => {
-      this.handleWebSocketMessage(event);
-    };
-
     this.webSocketManager.onOpen = () => {
       this.isConnected = true;
       console.log('WebSocket connection opened');
@@ -85,7 +87,7 @@ export class AudioManager {
     try {
       // Instantiate a new AudioRecorder for this session
       this.audioRecorder = new AudioRecorder(
-        (audioData) => this.sendAudioData(audioData),
+        (audioData) => this.audioCommunication.sendAudioData(audioData),
         () => this.onSilenceDetected()
       );
       
@@ -118,92 +120,10 @@ export class AudioManager {
     // If silence was detected or manually stopped, request a response
     if (this.isConnected) {
       console.log('AudioManager: Requesting response after audio recording stopped');
-      this.requestResponse();
+      this.audioCommunication.requestResponse();
     }
     
     this.isProcessing = false;
-  }
-  
-  private sendAudioData(audioData: ArrayBuffer): void {
-    if (!this.isConnected) {
-      console.warn('AudioManager: Cannot send audio data: WebSocket not connected');
-      return;
-    }
-    
-    try {
-      // Send the audio data directly to the WebSocketManager
-      this.webSocketManager.sendMessage(audioData);
-    } catch (error) {
-      console.error('AudioManager: Error sending audio data:', error);
-    }
-  }
-  
-  private requestResponse(): void {
-    if (!this.isConnected) {
-      console.warn('AudioManager: Cannot request response: WebSocket not connected');
-      return;
-    }
-    
-    try {
-      // Send commit event to finalize the audio buffer
-      this.webSocketManager.sendMessage({
-        type: 'input_audio_buffer.commit',
-        event_id: `commit_${Date.now()}`
-      });
-      
-      // Send text message event
-      this.webSocketManager.sendMessage({
-        type: 'conversation.item.create',
-        event_id: `conv_${Date.now()}`,
-        item: {
-          type: 'message',
-          role: 'user',
-          content: [
-            {
-              type: 'input_audio_transcription'
-            }
-          ]
-        }
-      });
-      
-      // Send response creation request
-      this.webSocketManager.sendMessage({
-        type: 'response.create',
-        event_id: `resp_${Date.now()}`
-      });
-      
-      console.log('AudioManager: Response requested');
-    } catch (error) {
-      console.error('AudioManager: Error requesting response:', error);
-    }
-  }
-  
-  private handleWebSocketMessage(event: MessageEvent): void {
-    try {
-      const data = JSON.parse(event.data);
-      console.log('AudioManager: Received WebSocket event:', data.type);
-      
-      // Handle different event types
-      switch (data.type) {
-        case 'response.audio.delta':
-          this.audioStateManager.setIsSpeaking(true);
-          break;
-          
-        case 'response.audio.done':
-          this.audioStateManager.setIsSpeaking(false);
-          break;
-          
-        case 'error':
-          console.error('AudioManager: Error from WebSocket:', data.error);
-          break;
-          
-        default:
-          // Process other message types as needed
-          break;
-      }
-    } catch (error) {
-      console.error('AudioManager: Error handling WebSocket message:', error);
-    }
   }
   
   getAudioStateManager(): AudioStateManager {
